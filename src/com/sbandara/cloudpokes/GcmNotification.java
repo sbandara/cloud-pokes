@@ -8,10 +8,8 @@ import com.eclipsesource.json.JsonObject;
 
 final class GcmNotification extends Notification {
 	
-	private final String token;
-	
 	GcmNotification(DeviceToken token) {
-		this.token = token.getGcmToken();
+		super(token);
 	}
 
 	@Override
@@ -31,8 +29,8 @@ final class GcmNotification extends Notification {
 
 	@Override
 	void writeToOutputStream(OutputStream out) throws IOException {
-		JsonObject pack = new JsonObject().add("data", json_payload)
-				.add("registration_ids", new JsonArray().add(token));
+		JsonObject pack = new JsonObject().add("data", json_payload).add(
+				"registration_ids", new JsonArray().add(token.getGcmToken()));
 		byte[] payload = jsonToByteArray(pack);
 		out.write(payload);
 	}

@@ -12,12 +12,11 @@ final class ApnsNotification extends Notification {
 			id_identifier = 3, id_expiration = 4, id_priority = 5;
 
 	private final int identifier;
-	private final byte[] token;
 
 	private final static AtomicInteger id_gen = new AtomicInteger(1);
 
 	ApnsNotification(DeviceToken token) {
-		this.token = token.getApnsToken();
+		super(token);
 		identifier = id_gen.incrementAndGet();
 	}
 	
@@ -57,7 +56,7 @@ final class ApnsNotification extends Notification {
 		out.write(cmd_send);
 		out.write(integerToBytes(frm_len, 4));
 		out.write(new byte[] {id_token, 0, 32});
-		out.write(token);
+		out.write(token.getApnsToken());
 		out.write(id_payload);
 		out.write(integerToBytes(payload.length, 2));
 		out.write(payload);		

@@ -13,6 +13,13 @@ public abstract class Notification {
 	private String sound = null, message = null;
 	private boolean did_seal = false;
 	protected final JsonObject json_payload = new JsonObject();
+	protected final DeviceToken token;
+	
+	protected Notification(DeviceToken token) {
+		this.token = token;
+	}
+	
+	public final DeviceToken getToken() { return token; }
 	
 	public final Notification setSound(String sound) {
 		this.sound = sound;
