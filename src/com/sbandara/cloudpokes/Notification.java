@@ -14,21 +14,28 @@ public abstract class Notification {
 	private boolean did_seal = false;
 	protected final JsonObject json_payload = new JsonObject();
 	
-	public final void setSound(String sound) { this.sound = sound; }
+	public final Notification setSound(String sound) {
+		this.sound = sound;
+		return this;
+	}
 	
-	public abstract void setDefaultSound();
+	public abstract Notification setDefaultSound();
 	
 	public final String getSound() { return sound; }
 	
-	public final void setMessage(String message) { this.message = message; }
+	public final Notification setMessage(String message) {
+		this.message = message;
+		return this;
+	}
 	
 	public final String getMessage() { return message; }
 	
-	public final void setCustom(String key, JsonValue value) {
+	public final Notification setCustom(String key, JsonValue value) {
 		if ("aps".equals(key)) {
 			throw new IllegalArgumentException(key + " is a reserved key.");
 		}
 		json_payload.set(key, value);
+		return this;
 	}
 	
 	protected abstract void sealPayload();

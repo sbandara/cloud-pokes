@@ -15,7 +15,10 @@ final class GcmNotification extends Notification {
 	}
 
 	@Override
-	public void setDefaultSound() { setSound(null); }
+	public Notification setDefaultSound() {
+		setSound(null);
+		return this;
+	}
 
 	@Override
 	protected void sealPayload() {

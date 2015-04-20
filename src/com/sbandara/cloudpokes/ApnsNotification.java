@@ -22,7 +22,10 @@ final class ApnsNotification extends Notification {
 	}
 	
 	@Override
-	public void setDefaultSound() { setSound("default"); }
+	public Notification setDefaultSound() {
+		setSound("default");
+		return this;
+	}
 		
 	private byte[] integerToBytes(int j, int n_bytes) {
 		byte buf[] = new byte[n_bytes];
