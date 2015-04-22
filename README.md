@@ -14,12 +14,13 @@ This allows a factory to instantiate the correct platform-specific
 implementation of a <code>Notification</code>. Therefore, the following
 example will send a greeting to the device identified by
 <code>token</code>, no matter whether it is an iOS or an Android device:
-
-    void sayHello(String name, DeviceToken token) {
-        Notification notification = Notification.withToken(token);
-        notification.setMessage("Hello " + name + '!')
-                .setDefaultSound().send();
-    }
+```java
+void sayHello(String name, DeviceToken token) {
+    Notification notification = Notification.withToken(token);
+    notification.setMessage("Hello " + name + '!')
+            .setDefaultSound().send();
+}
+```
 
 **Configuration**
 
@@ -28,19 +29,19 @@ To configure the APNS gateway, you must implement the
 <code>getCertFile()</code> and <code>getCertPhrase()</code>. These
 methods must return an <code>InputStream</code> of your app's PKCS #12
 push certificate and its passphrase, respectively, for example:
-
-		ApnsConfig apns_config = new ApnsConfig(Env.SANDBOX) {
-			  @Override
-			  public InputStream getCertFile() throws IOException {
-				    return getResourceStream("META-INF/apns-dev.p12");
-			  }
-			  @Override
-			  public String getCertPhrase() {
-				    return "changeme";
-			  }
-		};
-		ApnsPushSender.configure(apns_config);
-
+```java
+ApnsConfig apns_config = new ApnsConfig(Env.SANDBOX) {
+    @Override
+    public InputStream getCertFile() throws IOException {
+        return getResourceStream("META-INF/apns-dev.p12");
+    }
+    @Override
+    public String getCertPhrase() {
+        return "changeme";
+    }
+};
+ApnsPushSender.configure(apns_config);
+```
 The constructor of <code>ApnsConfig</code> takes an environment specifier
 which can be <code>Env.PRODUCTION</code> or <code>Env.SANDBOX</code>. The
 same configuration object can be used for setting up the
@@ -72,42 +73,42 @@ However, a full client for the APNS feedback service is implemented as
 object for construction. To receive inactive tokens from APNS, you
 must implement the <code>FeedbackClient.Listener</code> interface, for
 example:
-
-    FeedbackClient.Listener listener = new FeedbackClient.Listener() {
-        @Override
-        public void receiveInactiveToken(byte[] token) {
-            removeTokenFromUserDB(token);
-        }
-    };
-    FeedbackClient feedback_client = new FeedbackClient(apns_config);
-    try {
-        feedback_client.fetchInactiveTokens(listener);
+```java
+FeedbackClient.Listener listener = new FeedbackClient.Listener() {
+    @Override
+    public void receiveInactiveToken(byte[] token) {
+        removeTokenFromUserDB(token);
     }
-    catch (IOException e) { ... }
-
+};
+FeedbackClient feedback_client = new FeedbackClient(apns_config);
+try {
+    feedback_client.fetchInactiveTokens(listener);
+}
+catch (IOException e) { ... }
+```
 In contrast, transmission errors at the GCM endpoint are directly
 reported to the <code>GcmPushSender.Delegate</code> interface that you
 must implement. The corresponding methods are <code>didSend</code> and
 <code>didFail</code>, for example:
-
-    @Override
-    public void didSend(Notification notification, String reg_id) {
-        if (reg_id != null) {
-            updateToken(notification.getToken().getGcmToken(), reg_id);
-        }
+```java
+@Override
+public void didSend(Notification notification, String reg_id) {
+    if (reg_id != null) {
+        updateToken(notification.getToken().getGcmToken(), reg_id);
     }
-
+}
+```
 In the above, <code>reg_id</code> is the canonical registration ID from
 the GCM endpoint if one was returned or <code>null</code> otherwise.
 The failure handler could look like this:
-
-    @Override
-    public void didFail(Notification notification, String error) {
-        if ("NotRegistered".equals(error)) {
-            removeTokenFromUserDB(notification.getToken().getGcmToken());
-        }
+```java
+@Override
+public void didFail(Notification notification, String error) {
+    if ("NotRegistered".equals(error)) {
+        removeTokenFromUserDB(notification.getToken().getGcmToken());
     }
-
+}
+```
 See the Android Developers reference for a list of possible
 <code>error</code> strings. <code>error</code> is <code>null</code> for
 failed connections to the GCM endpoint.
