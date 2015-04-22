@@ -2,6 +2,7 @@ package com.sbandara.cloudpokes;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.eclipsesource.json.JsonObject;
@@ -26,16 +27,14 @@ final class ApnsNotification extends Notification {
 		return this;
 	}
 		
-	private byte[] integerToBytes(int j, int n_bytes) {
-		byte buf[] = new byte[n_bytes];
-		long mod = 256;
-		for (int k = n_bytes - 1; k > 0; k --) {
-			buf[k] = (byte) (j % mod);
-			j -= buf[k];
-			mod *= 256;
-		}
-		buf[0] = (byte) j;
-		return buf;
+	static byte[] integerToBytes(int value) {
+		ByteBuffer buf = ByteBuffer.allocate(4);
+		return buf.putInt(value).array();
+	}
+
+	static byte[] shortToBytes(short value) {
+		ByteBuffer buf = ByteBuffer.allocate(2);
+		return buf.putShort(value).array();
 	}
 	
 	@Override
@@ -54,14 +53,14 @@ final class ApnsNotification extends Notification {
 		byte[] payload = jsonToByteArray(json_payload);
 		int frm_len = 38 + payload.length + 18;
 		out.write(cmd_send);
-		out.write(integerToBytes(frm_len, 4));
+		out.write(integerToBytes(frm_len));
 		out.write(new byte[] {id_token, 0, 32});
 		out.write(token.getApnsToken());
 		out.write(id_payload);
-		out.write(integerToBytes(payload.length, 2));
+		out.write(shortToBytes((short) payload.length));
 		out.write(payload);		
 		out.write(new byte[] {id_identifier, 0, 4});
-		out.write(integerToBytes(identifier, 4));
+		out.write(integerToBytes(identifier));
 		out.write(new byte[] {id_expiration, 0, 4, 0, 0, 0, 0});
 		out.write(new byte[] {id_priority, 0, 1, 10});
 	}

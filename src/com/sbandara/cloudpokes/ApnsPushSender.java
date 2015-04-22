@@ -3,6 +3,7 @@ package com.sbandara.cloudpokes;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.SocketException;
+import java.nio.ByteBuffer;
 import java.util.concurrent.locks.ReentrantLock;
 
 import javax.net.ssl.*;
@@ -30,7 +31,11 @@ public final class ApnsPushSender extends ApnsGateway {
 	private ApnsPushSender(ApnsConfig config) {
 		super(config, Service.DISPATCH);
 	}
-	
+
+	static int bytesToInteger(byte[] buf, int off) {
+		return ByteBuffer.wrap(buf, off, 4).getInt();
+	}
+
 	static private class ErrorReceiver extends Thread {
 		
 		final static int OK = 0, HANGUP = 1024;
@@ -46,28 +51,29 @@ public final class ApnsPushSender extends ApnsGateway {
 			this.input_stream = input_stream;
 		}
 		
+		private final static int ERROR_BUF_SIZE = 6, ERROR_HEADER = 8;
+				
 		@Override
 		public void run() {
 			if (input_stream == null) {
 				throw new IllegalStateException("No input stream assigned.");
 			}
 			try {
-				byte[] packet = new byte[6];
-				int n_byte = input_stream.read(packet);
-				if (n_byte < 6) {
-					throw new IOException("Connection dropped.");
+				byte[] pack = new byte[ERROR_BUF_SIZE];
+				int n_byte, off = 0;
+				while (off < pack.length) {
+					n_byte = input_stream.read(pack, off, pack.length - off);
+					if (n_byte == -1) {
+						throw new IOException("Connection dropped.");
+					}
+					off += n_byte;
 				}
-				if (packet[0] != 8) {
+				if (pack[0] != ERROR_HEADER) {
 					System.out.println("Unexpected response from APNS.");
 					return;
 				}
-				error_code = packet[1];
-				last_sent_id = 0;
-				long mod = 1;
-				for (int k = 5; k > 1; k --) {
-					last_sent_id += packet[k] * mod;
-					mod *= 256;
-				}
+				error_code = pack[1];
+				last_sent_id = bytesToInteger(pack, 2);
 			}
 			catch (IOException e) {
 				System.out.println(e.getMessage());
