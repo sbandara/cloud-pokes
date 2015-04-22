@@ -44,18 +44,18 @@ public abstract class Notification {
 		json_payload.set(key, value);
 		return this;
 	}
-	
-	protected abstract void sealPayload();
-	
-	final void sealEnvelope() {
-		if (did_seal) {
-			throw new IllegalStateException("Notification already sealed.");
+		
+	public void send() {
+		if (! did_seal) {
+			sealPayload();
+			did_seal = true;		
 		}
-		sealPayload();
-		did_seal = true;
+		dispatch();
 	}
-	
-	public abstract void send();
+
+	abstract void sealPayload();
+
+	abstract void dispatch();
 	
 	final protected static byte[] jsonToByteArray(JsonValue json) {
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();

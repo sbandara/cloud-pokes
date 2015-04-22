@@ -62,7 +62,6 @@ public final class GcmPushSender extends ServiceConnector {
 	}
 	
 	void sendNotification(Notification notification) {
-		notification.sealEnvelope();
 		HttpURLConnection conn = getConnection();
 		OutputStream os = null;
 		try {

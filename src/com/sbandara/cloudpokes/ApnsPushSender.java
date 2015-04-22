@@ -89,7 +89,6 @@ public final class ApnsPushSender extends ApnsGateway {
 	}
 	
 	void sendNotification(Notification notification) {
-		notification.sealEnvelope();
 		if (is_debug) {
 			try {
 				notification.writeToOutputStream(System.out);

@@ -36,7 +36,7 @@ final class GcmNotification extends Notification {
 	}
 
 	@Override
-	public void send() {
+	void dispatch() {
 		GcmPushSender.getInstance().sendNotification(this);
 	}
 }

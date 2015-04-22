@@ -67,7 +67,7 @@ final class ApnsNotification extends Notification {
 	}
 
 	@Override
-	public void send() {
+	void dispatch() {
 		ApnsPushSender.getInstance().sendNotification(this);
 	}
 }
