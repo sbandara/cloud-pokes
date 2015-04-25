@@ -37,6 +37,57 @@ public class DeviceToken {
 	
 	public final boolean isApnsToken() { return apns_token != null; }
 	
+	public final boolean equalsApnsToken(byte[] token) {
+		if ((this.apns_token == null) || (token == null)) {
+			return false;
+		}
+		for (int k = 0; k < this.apns_token.length; k ++) {
+			if (this.apns_token[k] != token[k]) {
+				return false;
+			}
+		}
+		return true;
+	}
+	
+	public final boolean equalsApnsToken(String base64) {
+		if (base64 == null) {
+			return false;
+		}
+		return equalsApnsToken(DatatypeConverter.parseBase64Binary(base64));
+	}
+	
+	public final boolean equalsGcmToken(String token) {
+		if (token == null) {
+			return false;
+		}
+		return token.equals(this.gcm_token);
+	}
+	
+	@Override
+	public final boolean equals(Object anObject) {
+		if (! (anObject instanceof DeviceToken)) {
+			return false;
+		}
+		if (this == anObject) {
+			return true;
+		}
+		DeviceToken other = (DeviceToken) anObject;
+		if (other.gcm_token != null) {
+			return other.gcm_token.equals(this.gcm_token);
+		}
+		else return equalsApnsToken(other.apns_token);
+	}
+	
+	@Override
+	public final String toString() {
+		if (gcm_token != null) {
+			return "GCM:" + gcm_token;
+		}
+		else {
+			return "APNS:" + DatatypeConverter.printBase64Binary(apns_token);
+		}
+	}
+	
 	public final String getGcmToken() {
 		if (gcm_token == null) {
 			throw new UnsupportedOperationException("Not a GCM token.");
@@ -49,5 +100,12 @@ public class DeviceToken {
 			throw new UnsupportedOperationException("Not an APNS token.");
 		}
 		return apns_token;
+	}
+	
+	public final String getBase64ApnsToken() {
+		if (apns_token == null) {
+			throw new UnsupportedOperationException("Not an APNS token.");
+		}
+		return DatatypeConverter.printBase64Binary(apns_token);
 	}
 }
