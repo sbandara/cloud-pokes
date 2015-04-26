@@ -38,7 +38,7 @@ public class AsyncQueueTest {
 
 	@Test(timeout=10000)
 	public void testBlockingQueue() {
-		final int OFF = 3, DELAY = 50;
+		final int OFF = 7, DELAY = 200;
 		for (int id = 0; id < COUNT; id ++) {
 			Action action = new Action(id);
 			if (id % (SIZE + OFF) == 0) {
