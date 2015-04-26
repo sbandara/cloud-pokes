@@ -1,17 +1,21 @@
 package com.sbandara.cloudpokes;
 
-public class NotificationBuffer {
+public class AsyncRedoBlockingQueue {
 	
 	private final static int TAPE_LENGTH = 128, MIN_RETAIN_MILLIS = 1000;
 	
-	private final class Entry {
+	public interface Action {
+		public void send();
+	}
+	
+	private final static class Entry {
 		
-		Entry(ApnsNotification notification, int id) {
+		Entry(Action notification, int id) {
 			this.notification = notification;
 			this.id = id;
 		}
 		
-		final ApnsNotification notification;
+		final Action notification;
 		final int id;
 		long sent = 0;
 		
@@ -32,7 +36,7 @@ public class NotificationBuffer {
 	private volatile Thread worker = null;
 	private volatile boolean is_rewinding = false;
 	
-	synchronized public void enqueue(ApnsNotification notification, int id) {
+	synchronized public void enqueue(Action notification, int id) {
 		boolean was_interrupted = false;
 		if (++ head == TAPE_LENGTH) {
 			head = 0;
