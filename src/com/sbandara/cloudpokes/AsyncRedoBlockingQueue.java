@@ -4,29 +4,25 @@ public class AsyncRedoBlockingQueue {
 	
 	private final static int TAPE_LENGTH = 128, MIN_RETAIN_MILLIS = 1000;
 	
-	public interface Action {
-		public void send();
-	}
-	
 	private final static class Entry {
 		
-		Entry(Action notification, int id) {
-			this.notification = notification;
+		Entry(Runnable action, int id) {
+			this.action = action;
 			this.id = id;
 		}
 		
-		final Action notification;
+		final Runnable action;
 		final int id;
-		long sent = 0;
+		long run = 0;
 		
 		void send() {
 			try {
-				notification.send();
+				action.run();
 			}
 			catch (RuntimeException e) {
 				System.out.println("Unhandled Exception.");
 			}
-			sent = System.currentTimeMillis();
+			run = System.currentTimeMillis();
 		}
 	}
 	
@@ -36,7 +32,7 @@ public class AsyncRedoBlockingQueue {
 	private volatile Thread worker = null;
 	private volatile boolean is_rewinding = false;
 	
-	synchronized public void enqueue(Action notification, int id) {
+	synchronized public void enqueue(Runnable action, int id) {
 		boolean was_interrupted = false;
 		if (++ head == TAPE_LENGTH) {
 			head = 0;
@@ -53,7 +49,7 @@ public class AsyncRedoBlockingQueue {
 				}
 			}
 			for (;;) {
-				long elapsed = System.currentTimeMillis() - tape[head].sent;
+				long elapsed = System.currentTimeMillis() - tape[head].run;
 				if (elapsed < MIN_RETAIN_MILLIS) {
 					break;
 				}
@@ -66,7 +62,7 @@ public class AsyncRedoBlockingQueue {
 			}
 		}
 		synchronized (consumer) {
-			tape[head] = new Entry(notification, id);
+			tape[head] = new Entry(action, id);
 			if ((worker == null) && (! is_rewinding)) {
 				worker = new Thread(consumer);
 				worker.start();
@@ -102,7 +98,7 @@ public class AsyncRedoBlockingQueue {
 		}
 		
 		private boolean hasJobs() {
-			return (tape[tail] != null) && (tape[tail].sent == 0);
+			return (tape[tail] != null) && (tape[tail].run == 0);
 		}
 	}
 	
@@ -140,10 +136,10 @@ public class AsyncRedoBlockingQueue {
 			if (tape[k] == null) {
 				continue;
 			}
-			if (tape[k].sent == 0) {
+			if (tape[k].run == 0) {
 				break;
 			}
-			tape[k].sent = 0;
+			tape[k].run = 0;
 		}
 		if (consumer.hasJobs()) {
 			worker = new Thread(consumer);
