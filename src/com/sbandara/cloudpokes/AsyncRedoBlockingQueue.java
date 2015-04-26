@@ -1,8 +1,6 @@
 package com.sbandara.cloudpokes;
 
-import java.util.concurrent.atomic.AtomicInteger;
-
-public class AsyncRedoBlockingQueue {
+public final class AsyncRedoBlockingQueue {
 	
 	public AsyncRedoBlockingQueue(int size, int history_millis) {
 		tape_length = size;
@@ -21,7 +19,7 @@ public class AsyncRedoBlockingQueue {
 		final int id;
 		volatile long run = 0;
 		
-		void send() {
+		void execute() {
 			try {
 				action.run();
 			}
@@ -37,7 +35,6 @@ public class AsyncRedoBlockingQueue {
 	private int tail = 0, head = 0;
 	private final Consumer consumer = new Consumer();
 	private Thread worker = null;
-	private boolean is_rewinding = false;
 	
 	private int inc(int k) {
 		if (++ k == tape_length) {
@@ -45,32 +42,7 @@ public class AsyncRedoBlockingQueue {
 		}
 		return k;
 	}
-	
-	private final LogEntry[] log_entry = new LogEntry[1024];
-	private AtomicInteger idx_log = new AtomicInteger(-1);
 
-	private void log(String src, int value) {
-		int idx = idx_log.incrementAndGet();
-		LogEntry entry = new LogEntry(src, value);
-		log_entry[idx] = entry;
-	}
-	
-	private static class LogEntry {
-		private LogEntry(String src, int value) {
-			this.src = src;
-			this.value = value;
-		}
-		final String src;
-		final int value;
-	}
-	
-	public void showLog() {
-		int n_log = idx_log.get();
-		for (int k = 0; k < n_log; k ++) {
-			System.out.println(log_entry[k].src + ": " + log_entry[k].value);
-		}
-	}
-	
 	synchronized public void enqueue(Runnable action, int id) {
 		boolean was_interrupted = false;
 		synchronized (tape) {
@@ -100,7 +72,7 @@ public class AsyncRedoBlockingQueue {
 		}
 		synchronized (consumer) {
 			tape[head] = new Entry(action, id);
-			if ((worker == null) && (! is_rewinding)) {
+			if (worker == null) {
 				worker = new Thread(consumer);
 				worker.start();
 			}
@@ -118,7 +90,7 @@ public class AsyncRedoBlockingQueue {
 					tail = inc(tail);
 					tape.notify();
 				}
-				tape[tail].send();
+				tape[tail].execute();
 				synchronized (consumer) {
 					if ((Thread.interrupted()) || (! hasJobs())) {
 						worker = null;
@@ -135,17 +107,18 @@ public class AsyncRedoBlockingQueue {
 		}
 	}
 	
-	private final int findEntry(int id) {
-		for (int k = 0; k < tape_length; k ++) {
-			if (tape[k].id == id) {
-				return k;
+	synchronized public void rewind(int id) throws EntryNotFoundException {
+		boolean was_interrupted = false;
+		int idx = -1;
+		for (int k = inc(head); k != head; k = inc(k)) {
+			if ((tape[k] != null) && (tape[k].id == id)) {
+				idx = k;
+				break;
 			}
 		}
-		return -1;
-	}
-	
-	public final void rewind(int id) throws EntryNotFoundException {
-		boolean was_interrupted = false;
+		if (idx == -1) {
+			throw new EntryNotFoundException(id);
+		}
 		synchronized (consumer) {
 			if (worker != null) {
 				worker.interrupt();
@@ -158,32 +131,18 @@ public class AsyncRedoBlockingQueue {
 					}
 				}
 			}
-			is_rewinding = true;
-		}
-		final int idx = findEntry(id);
-		tail = idx;
-		for (int k = tail; k != head; k ++) {
-			if (k == tape_length) {
-				k = 0;
+			tail = idx;
+			for (int k = inc(tail); k != head; k = inc(k)) {
+				if (tape[k].run == 0) {
+					break;
+				}
+				tape[k].run = 0;
 			}
-			if (tape[k] == null) {
-				continue;
-			}
-			if (tape[k].run == 0) {
-				break;
-			}
-			tape[k].run = 0;
-		}
-		if (consumer.hasJobs()) {
 			worker = new Thread(consumer);
-			worker.start();
 		}
-		is_rewinding = false;
+		worker.start();
 		if (was_interrupted) {
 			Thread.currentThread().interrupt();
-		}
-		if (idx == -1) {
-			throw new EntryNotFoundException(id);
 		}
 	}
 }
