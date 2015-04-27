@@ -149,4 +149,21 @@ public final class AsyncRedoBlockingQueue {
 			Thread.currentThread().interrupt();
 		}
 	}
+	
+	public synchronized void purgeQueue() {
+		boolean was_interrupted = false;
+		synchronized (consumer) {
+			while (worker != null) {
+				try {
+					consumer.wait();
+				}
+				catch (InterruptedException e) {
+					was_interrupted = true;
+				}
+			}
+		}
+		if (was_interrupted) {
+			Thread.currentThread().interrupt();
+		}
+	}
 }

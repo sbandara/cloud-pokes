@@ -46,7 +46,7 @@ public class AsyncQueueTest {
 			}
 			queue.enqueue(action, id);
 		}
-		sleepDeeply(500);
+		queue.purgeQueue();
 		for (int k = 0; k < COUNT; k ++) {
 			int id = dest.get(k);
 			Assert.assertEquals(id, k);
@@ -81,7 +81,7 @@ public class AsyncQueueTest {
 				rewind = -1;
 			}
 		}
-		sleepDeeply(500);
+		queue.purgeQueue();
 		int prev_id = -1, id;
 		for (int k = 0; k < dest.size(); k ++) {
 			id = dest.get(k);
