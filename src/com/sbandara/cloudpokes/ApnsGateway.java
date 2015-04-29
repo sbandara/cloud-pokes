@@ -2,6 +2,7 @@ package com.sbandara.cloudpokes;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.Socket;
 import java.security.*;
 
 import javax.net.ssl.*;
@@ -11,12 +12,25 @@ public abstract class ApnsGateway extends ServiceConnector {
 	private static final SecureRandom sec_rnd = new SecureRandom();
 	public static enum Env { PRODUCTION, SANDBOX }	
 	public static enum Service { DISPATCH, FEEDBACK }
+	
+	public interface ApnsConfig {
 
-	public static abstract class ApnsConfig {
+		public String getHostname(Service service);
+		
+		public int getPort(Service service);
+		
+		public InputStream getCertFile() throws IOException;
+		
+		public String getCertPhrase();
+	}
+
+	public static abstract class ApnsDefaultConfig implements ApnsConfig {
 				
 		public final Env environment;
 		
-		public ApnsConfig(Env environment) { this.environment = environment; }
+		public ApnsDefaultConfig(Env environment) {
+			this.environment = environment;
+		}
 
 		public final String getHostname(Service service) {
 			if (environment == Env.PRODUCTION) {
@@ -54,7 +68,7 @@ public abstract class ApnsGateway extends ServiceConnector {
 		
 		public abstract String getCertPhrase();
 	}
-		
+	
 	private KeyManager[] key_managers = null;
 	private SSLSocketFactory socket_factory = null;
 	private final ApnsConfig config;
@@ -65,7 +79,8 @@ public abstract class ApnsGateway extends ServiceConnector {
 		this.service = service;
 	}
 	
-	protected KeyManager[] getKeyManagers() throws IOException {
+	protected KeyManager[] getKeyManagers(InputStream certificate,
+			String passphrase) throws IOException {
 		if (key_managers == null) {
 			KeyStore ks;
 			try {
@@ -74,16 +89,15 @@ public abstract class ApnsGateway extends ServiceConnector {
 			catch (KeyStoreException e) {
 				throw new RuntimeException("Unable to create key store.");
 			}
-	    	char certphrase[] = config.getCertPhrase().toCharArray();
-	    	InputStream cert = config.getCertFile();
+	    	char certphrase[] = passphrase.toCharArray();
 	    	try {
-	    		ks.load(cert, certphrase);
+	    		ks.load(certificate, certphrase);
 	    	}
 	    	catch (GeneralSecurityException e) {
 				throw new RuntimeException("Bad certificate or unknown type.");
 	    	}
 	    	finally {
-	    		closeQuietly(cert);
+	    		closeQuietly(certificate);
 	    	}
 	    	KeyManagerFactory kmf;
 	    	try {
@@ -99,32 +113,35 @@ public abstract class ApnsGateway extends ServiceConnector {
     	return key_managers;
 	}
 	
-	protected SSLSocket secureConnect() {
+	private Socket secureConnect() throws IOException {
 		if (socket_factory == null) {
 			try {
 				SSLContext context = SSLContext.getInstance("TLS");
-				context.init(getKeyManagers(), null, sec_rnd);
+				context.init(getKeyManagers(config.getCertFile(), config
+						.getCertPhrase()), null, sec_rnd);
 				socket_factory = context.getSocketFactory();
 			}
 			catch (GeneralSecurityException security_exception) {
-				System.out.println("Failed to create secure socket factory.");
-				return null;
+				throw new IOException("Failed to create SSL socket factory.");
 			}
 			catch (IOException io_exception) {
-				System.out.println("Failed to read APNS certificate.");
-				return null;
+				throw new IOException("Failed to read APNS certificate.");
 			}
 		}
 		SSLSocket ssl_socket = null;
-		try {
-			ssl_socket = (SSLSocket) socket_factory.createSocket(config
-					.getHostname(service), config.getPort(service));
-		}
-		catch (IOException e) {
-			System.out.println("Failed to open connection.");
-			return null;
-		}
+		ssl_socket = (SSLSocket) socket_factory.createSocket(config
+				.getHostname(service), config.getPort(service));
 		ssl_socket.setUseClientMode(true);
 		return ssl_socket;
+	}
+	
+	protected Socket socketConnect() throws IOException {
+		if (config.getCertPhrase() == null) {
+			return new Socket(config.getHostname(service), config.getPort(
+					service));
+		}
+		else {
+			return secureConnect();
+		}
 	}
 }

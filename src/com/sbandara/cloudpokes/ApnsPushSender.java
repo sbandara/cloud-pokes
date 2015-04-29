@@ -2,16 +2,14 @@ package com.sbandara.cloudpokes;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.SocketException;
+import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.util.concurrent.locks.ReentrantLock;
-
-import javax.net.ssl.*;
 
 public final class ApnsPushSender extends ApnsGateway {
 	
 	private final ReentrantLock socket_lock = new ReentrantLock();
-	private SSLSocket socket = null;
+	private Socket socket = null;
 	private ErrorReceiver observer = new ErrorReceiver();
 	
 	public static boolean is_debug = false;
@@ -108,37 +106,19 @@ public final class ApnsPushSender extends ApnsGateway {
 			if (last_error != 0) {
 				closeSocket();
 			}
-			if (socket == null) {
-				socket = secureConnect();
-				if (socket == null) {
-					System.out.println("Failed to dispatch notification.");
-					return;
-				}
-				try {
-					socket.setSoTimeout(0);
-				}
-				catch (SocketException e) {
-					System.out.println("Failed to configure socket timeout.");
-					closeSocket();
-					return;
-				}
-				observer = new ErrorReceiver();
-				try {
-					observer.setInputStream(socket.getInputStream());
-				}
-				catch (IOException e) {
-					System.out.println("Unable to get input stream.");
-					closeSocket();
-					System.out.println("Failed to dispatch notification.");
-					return;
-				}
-				observer.start();
-			}
 			try {
+				if (socket == null) {
+					socket = socketConnect();
+					socket.setSoTimeout(0);
+					observer = new ErrorReceiver();
+					observer.setInputStream(socket.getInputStream());
+					observer.start();
+				}
 				notification.writeToOutputStream(socket.getOutputStream());
 			}
 			catch (IOException e) {
 				closeSocket();
+				System.out.println("Failed to dispatch notification.");
 			}
 		}
 		finally {

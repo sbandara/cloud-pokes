@@ -2,8 +2,7 @@ package com.sbandara.cloudpokes;
 
 import java.io.IOException;
 import java.io.InputStream;
-
-import javax.net.ssl.SSLSocket;
+import java.net.Socket;
 
 public class FeedbackClient extends ApnsGateway {
 	
@@ -18,9 +17,9 @@ public class FeedbackClient extends ApnsGateway {
 	@SuppressWarnings("resource")
 	public void fetchInactiveTokens(Listener listener) throws IOException {
 		InputStream in = null;
-		SSLSocket feedback_socket = null;
+		Socket feedback_socket = null;
 		try {
-			feedback_socket = secureConnect();
+			feedback_socket = socketConnect();
 			if (feedback_socket == null) {
 				System.out.println("Failed to contact feedback service.");
 				return;
