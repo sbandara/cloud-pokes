@@ -28,7 +28,8 @@ public class MockApnsServer {
 				System.out.println("Waiting for client...");
 				for (;;) {
 				    Socket client = server_socket.accept();
-				    new Thread(new ServerThread(client));
+				    Thread thread = new Thread(new ServerThread(client));
+				    thread.start();
 				}
 			}
 			catch (IOException e) {
@@ -133,9 +134,7 @@ public class MockApnsServer {
 			return ByteBuffer.wrap(readBytes(2)).getShort();
 		}
 		
-		private final static int HEADER_CODE = 2, MAX_PAYLOAD_LEN = 2048;
-		private final static int ID_DEVICE_TOKEN = 1, ID_PAYLOAD = 2,
-				ID_IDENTIFIER = 3, ID_EXPIRATION = 4, ID_PRIORITY = 5;
+		private final static int MAX_PAYLOAD_LEN = 2048;
 
 		private void readPacket() throws IOException {
 			int frame_len = readInt();
@@ -150,32 +149,32 @@ public class MockApnsServer {
 					failConnection(PROCESSING_ERROR);
 				}
 				switch(item_id) {
-				case ID_DEVICE_TOKEN:
+				case ApnsNotification.ID_TOKEN:
 					if (item_len != 32) {
 						failConnection(INVALID_TOKEN_SIZE);
 					}
 					packet.token = readBytes(32);
 					break;
-				case ID_PAYLOAD:
+				case ApnsNotification.ID_PAYLOAD:
 					if (item_len > MAX_PAYLOAD_LEN) {
 						failConnection(INVALID_PAYLOAD_SIZE);
 					}
 					String json = new String(readBytes(item_len), "UTF-8");
 					packet.payload = JsonObject.readFrom(json);
 					break;
-				case ID_IDENTIFIER:
+				case ApnsNotification.ID_IDENTIFIER:
 					if (item_len != 4) {
 						failConnection(PROCESSING_ERROR);
 					}
 					packet.notification_id = readInt();
 					break;
-				case ID_EXPIRATION:
+				case ApnsNotification.ID_EXPIRATION:
 					if (item_len != 4) {
 						failConnection(PROCESSING_ERROR);
 					}
 					packet.expires = readInt();
 					break;
-				case ID_PRIORITY:
+				case ApnsNotification.ID_PRIORITY:
 					int priority = is.read();
 					if ((item_len != 1) || (priority == -1)) {
 						failConnection(PROCESSING_ERROR);
@@ -197,7 +196,7 @@ public class MockApnsServer {
 					if (header == -1) {
 						return;
 					}
-					else if (header != HEADER_CODE) {
+					else if (header != ApnsNotification.CMD_SEND) {
 						failConnection(PROCESSING_ERROR);
 					}
 					packet = new ApnsPacket();

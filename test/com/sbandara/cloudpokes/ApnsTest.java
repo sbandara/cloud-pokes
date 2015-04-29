@@ -23,9 +23,10 @@ public class ApnsTest {
 		}
 	}
 	
-	private static class MockServerListener implements ApnsServerEventListener {
+	private class MockServerListener implements ApnsServerEventListener {
+		
 		@Override
-		public void didAcceptPacket(ApnsPacket packet) {
+		public synchronized void didAcceptPacket(ApnsPacket packet) {
 			System.out.println(packet.getPayload().toString());
 		}
 	}
@@ -47,14 +48,14 @@ public class ApnsTest {
 			@Override
 			public InputStream getCertFile() throws IOException { return null; }
 			@Override
-			public String getHostname(Service service) { return "1.0.0.127"; }
+			public String getHostname(Service service) { return "localhost"; }
 			@Override
 			public int getPort(Service service) { return MOCK_APNS_PORT; }
 		});
 		Notification.withToken(new DeviceToken(new byte[32])).setMessage(
 				"Hello World!").send();
 		try {
-			Thread.sleep(5000);
+			Thread.sleep(1000);
 		}
 		catch (InterruptedException e) {
 			Thread.currentThread().interrupt();

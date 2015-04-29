@@ -79,7 +79,7 @@ public abstract class ApnsGateway extends ServiceConnector {
 		this.service = service;
 	}
 	
-	protected KeyManager[] getKeyManagers(InputStream certificate,
+	private KeyManager[] getKeyManagers(InputStream certificate,
 			String passphrase) throws IOException {
 		if (key_managers == null) {
 			KeyStore ks;
