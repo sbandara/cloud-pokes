@@ -2,13 +2,10 @@ package com.sbandara.cloudpokes;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.util.EventListener;
-
-import com.eclipsesource.json.JsonObject;
 
 public class MockApnsServer {
 	
@@ -65,7 +62,7 @@ public class MockApnsServer {
 		
 		private int notification_id, expires = -1;
 		private byte token[] = null, priority = -1;
-		private JsonObject payload = null;
+		private String payload = null;
 		
 		public int getNotificationId() { return notification_id; }
 
@@ -75,7 +72,7 @@ public class MockApnsServer {
 		
 		public byte getPriority() { return priority; }
 		
-		public JsonObject getPayload() { return payload; }
+		public String getPayload() { return payload; }
 	}
 	
 	private final static byte ERROR_HEADER = 8, PROCESSING_ERROR = 1,
@@ -92,25 +89,23 @@ public class MockApnsServer {
 			this.client = client;
 		}
 		
-		private void failConnection(byte code) throws IOException {
+		private void failConnection(byte code) {
 			ByteBuffer response = ByteBuffer.allocate(6).put(ERROR_HEADER)
 					.put(code);
 			if (code == INVALID_TOKEN) {
-				if ((packet == null) || (packet.token == null) ||
-						(packet.notification_id == -1)) {
-					throw new IllegalStateException(
-							"Token from incomplete packet cannot be invalid.");
+				if ((packet != null) && (packet.notification_id != -1)) {
+					response.putInt(packet.notification_id);
 				}
-				response.putInt(packet.notification_id);
 			}
 			else {
 				if (accepted != null) {
 					response.putInt(accepted.notification_id);
 				}
 			}
-			OutputStream os = client.getOutputStream();
-			os.write(response.array());
-			os.close();
+			try {
+				client.getOutputStream().write(response.array());
+			}
+			catch (IOException e) { }
 		}
 		
 		private byte[] readBytes(int len) throws IOException {
@@ -136,59 +131,60 @@ public class MockApnsServer {
 		
 		private final static int MAX_PAYLOAD_LEN = 2048;
 
-		private void readPacket() throws IOException {
+		private byte readPacket() throws IOException {
 			int frame_len = readInt();
 			while (frame_len > 0) {
 				int item_id = is.read();
 				if (item_id == -1) {
-					failConnection(PROCESSING_ERROR);
+					return PROCESSING_ERROR;
 				}
 				short item_len = readShort();
 				frame_len -= 3 + item_len;
 				if ((item_len < 0) || (frame_len < 0)) {
-					failConnection(PROCESSING_ERROR);
+					return PROCESSING_ERROR;
 				}
 				switch(item_id) {
 				case ApnsNotification.ID_TOKEN:
 					if (item_len != 32) {
-						failConnection(INVALID_TOKEN_SIZE);
+						return INVALID_TOKEN_SIZE;
 					}
 					packet.token = readBytes(32);
 					break;
 				case ApnsNotification.ID_PAYLOAD:
 					if (item_len > MAX_PAYLOAD_LEN) {
-						failConnection(INVALID_PAYLOAD_SIZE);
+						return INVALID_PAYLOAD_SIZE;
 					}
-					String json = new String(readBytes(item_len), "UTF-8");
-					packet.payload = JsonObject.readFrom(json);
+					packet.payload = new String(readBytes(item_len), "UTF-8");
 					break;
 				case ApnsNotification.ID_IDENTIFIER:
 					if (item_len != 4) {
-						failConnection(PROCESSING_ERROR);
+						return PROCESSING_ERROR;
 					}
 					packet.notification_id = readInt();
 					break;
 				case ApnsNotification.ID_EXPIRATION:
 					if (item_len != 4) {
-						failConnection(PROCESSING_ERROR);
+						return PROCESSING_ERROR;
 					}
 					packet.expires = readInt();
 					break;
 				case ApnsNotification.ID_PRIORITY:
 					int priority = is.read();
 					if ((item_len != 1) || (priority == -1)) {
-						failConnection(PROCESSING_ERROR);
+						return PROCESSING_ERROR;
 					}
 					packet.priority = (byte) priority;
 					break;
 				default:
-					failConnection(PROCESSING_ERROR);
+					return PROCESSING_ERROR;
 				}
 			}
+			return frame_len < 0 ? PROCESSING_ERROR : 0;
 		}
 		
 		public void run() {
 			System.out.println("Connected to client.");
+			byte status = 0;
 			try {
 				is = new BufferedInputStream(client.getInputStream());
 				for (;;) {
@@ -197,20 +193,24 @@ public class MockApnsServer {
 						return;
 					}
 					else if (header != ApnsNotification.CMD_SEND) {
-						failConnection(PROCESSING_ERROR);
+						status = PROCESSING_ERROR;
+						break;
 					}
 					packet = new ApnsPacket();
-					readPacket();
+					status = readPacket();
 					if (packet.token == null) {
-						failConnection(MISSING_DEVICE_TOKEN);
+						status = MISSING_DEVICE_TOKEN;
+						return;
 					}
 					if (packet.payload == null) {
-						failConnection(MISSING_PAYLOAD);
+						status = MISSING_PAYLOAD;
+						return;
 					}
-					if (bad_token != null) {
-						if (bad_token.equalsApnsToken(packet.token )) {
-							failConnection(INVALID_TOKEN);
-						}
+					if ((bad_token != null) && (bad_token.equalsApnsToken(
+							packet.token))) {
+						status = INVALID_TOKEN;
+						System.out.println("Bad token.");
+						return;
 					}
 					accepted = packet;
 					if (event_listener != null) {
@@ -219,10 +219,12 @@ public class MockApnsServer {
 				}
 			}
 			catch (IOException e) {
-				e.printStackTrace();
+				status = PROCESSING_ERROR;
 			}
 			finally {
-				ServiceConnector.closeQuietly(is);
+				if (status != 0) {
+					failConnection(status);
+				}
 				ServiceConnector.closeQuietly(client);
 				System.out.println("Connection closed.");
 			}
