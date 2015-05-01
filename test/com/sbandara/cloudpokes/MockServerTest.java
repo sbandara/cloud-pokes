@@ -13,11 +13,13 @@ import javax.xml.bind.DatatypeConverter;
 
 import org.junit.*;
 
+import com.sbandara.cloudpokes.MockApnsServer.ApnsPacket;
 import com.sbandara.cloudpokes.MockApnsServer.*;
 
 public class MockServerTest {
 	
-	private final static int MOCK_APNS_PORT = 2195, TOKEN_LEN = 32;
+	private final static int MOCK_APNS_PORT = 2195, TOKEN_LEN = 32,
+			ID_LITTLE_REV_INDEX = 12, MSG_ID = 42;
 	private final static byte[] HEAD = DatatypeConverter.parseBase64Binary(
 			"AgAAAFABACA="), TAIL = DatatypeConverter.parseBase64Binary
 			("AgAYeyJhcHMiOnsiYWxlcnQiOiJ0ZXN0In19AwAEAAAAAAQABAAAAAAFAAEK");
@@ -26,17 +28,16 @@ public class MockServerTest {
 	private static byte[][] tokens = null;
 	private Socket socket = null;
 	private final ArrayList<ApnsPacket> packets = new ArrayList<ApnsPacket>();
-	
+		
 	@BeforeClass
 	public static void setUp() throws IOException {
 		tokens = new byte[4][];
-		for (int n = 0; n < 4; n ++) {
-			byte[] token = new byte[TOKEN_LEN];
-			for (int k = 0; k < TOKEN_LEN; k ++) {
-				token[k] = (byte) (n + k);
-			}
-			tokens[n] = token;
+		int n = 0;
+		byte[] token = new byte[TOKEN_LEN];
+		for (int k = 0; k < TOKEN_LEN; k ++) {
+			token[k] = (byte) (n + k);
 		}
+		tokens[n] = token;
 		mock = new MockApnsServer();
 		mock.start(MOCK_APNS_PORT);
 	}
@@ -49,12 +50,13 @@ public class MockServerTest {
 			public void didAcceptPacket(ApnsPacket packet) {
 				synchronized (packets) {
 					packets.add(packet);
-					System.out.format("Packet %d was accepted.\n",
-							packet.getNotificationId());
 					packets.notify();
 				}
 			}
-		}).setBadToken(null);
+			@Override
+			public void didRejectPacket(ApnsPacket packet, byte error) {
+			}
+		}).defineBadToken(null);
 		socket = new Socket(InetAddress.getLocalHost(), MOCK_APNS_PORT);
 	}
 	
@@ -99,14 +101,31 @@ public class MockServerTest {
 	
 	@Test(timeout=1000)
 	public void testWithInvalidToken() throws IOException {
-		mock.setBadToken(DeviceToken.apnsToken(tokens[0]));
+		mock.defineBadToken(DeviceToken.apnsToken(tokens[0]));
 		byte[] bad_packet = binaryPacket(tokens[0]);
-		bad_packet[bad_packet.length - 12] = 42;
+		bad_packet[bad_packet.length - ID_LITTLE_REV_INDEX] = MSG_ID;
 		socket.getOutputStream().write(bad_packet);
-		assertArrayEquals(new byte[] {8, 8, 0, 0, 0, 42}, readResponse());
+		assertArrayEquals(new byte[] {8, 8, 0, 0, 0, MSG_ID}, readResponse());
 		assertEquals(packets.size(), 0);
 	}
-	
+
+	@Test(timeout=1000)
+	public void testShutdown() throws IOException {
+		byte[] packet = binaryPacket(tokens[0]);
+		packet[packet.length - ID_LITTLE_REV_INDEX] = MSG_ID;
+		synchronized (packets) {
+			socket.getOutputStream().write(packet);
+			try {
+				packets.wait();
+			}
+			catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			}
+		}
+		mock.disconnectAll();
+		assertArrayEquals(new byte[] {8, 10, 0, 0, 0, MSG_ID}, readResponse());
+	}
+
 	@AfterClass
 	public static void tearDown() {
 		mock.stop();
