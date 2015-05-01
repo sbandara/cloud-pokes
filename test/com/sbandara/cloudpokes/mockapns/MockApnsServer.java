@@ -1,11 +1,12 @@
-package com.sbandara.cloudpokes;
+package com.sbandara.cloudpokes.mockapns;
 
 import java.io.BufferedInputStream;
+import java.io.Closeable;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.util.EventListener;
+import java.util.Arrays;
 
 public class MockApnsServer {
 	
@@ -23,7 +24,7 @@ public class MockApnsServer {
 			int k = 0;
 		    while ((k < MAX_CONN) && (conns[k ++] != null));
 		    if (k == MAX_CONN) {
-		    	ServiceConnector.closeQuietly(client);
+		    	closeQuietly(client);
 		    }
 		    else {
 		    	conns[k] = new ServerThread(client, k).start();
@@ -44,81 +45,9 @@ public class MockApnsServer {
 		}
 		
 		void stop() {
-			ServiceConnector.closeQuietly(server_socket);
+			closeQuietly(server_socket);
 			server_socket = null;
 		}
-	}
-	
-	/**
-	 * The listener interface for observing APNS packets as they are being
-	 * accepted by the mock server. Tests should implement this interface to
-	 * confirm packet receipt. 
-	 */
-	public interface ApnsServerEventListener extends EventListener {
-		
-		/**
-		 * Invoked when a packet was accepted by the mock server. Because
-		 * multiple server threads report to this method, some implementations
-		 * will require synchronization.
-		 * @param packet the APNS packet that was accepted by the server.
-		 */
-		public void didAcceptPacket(ApnsPacket packet);
-		
-		/**
-		 * Invoked when an error was detected during transmission of a packet.
-		 * The rejected, incompletely parsed packet and an error code is sent
-		 * along. To provide insight for debugging, the error codes are more
-		 * fine-grained than APNS response codes.
-		 * @param packet the partially constructed packet object, or null if
-		 * entirely nothing was received
-		 * @param error an error code describing the reason for rejection
-		 */
-		public void didRejectPacket(ApnsPacket packet, byte error);
-	}
-	
-	/**
-	 * ApnsPacket represents accepted packets as received by the mock server.
-	 * Getters provide access to various request properties and can be used to
-	 * validate the correct transmission of push notification requests.
-	 */
-	public static final class ApnsPacket {
-		
-		private ApnsPacket() { };
-		
-		private int notification_id = -1, expires = -1;
-		private byte token[] = null, priority = -1;
-		private String payload = null;
-		
-		/**
-		 * @return the arbitrary notification ID that was received as frame
-		 * item 3, or <code>-1</code> if no notification ID was detected 
-		 */
-		public int getNotificationId() { return notification_id; }
-
-		/**
-		 * @return the UNIX epoch expiration date in seconds, or zero, as
-		 * received as frame item 4, or <code>-1</code> if no expiration date
-		 * was detected
-		 */
-		public int getExpirationDate() { return expires; }
-
-		/**
-		 * @return the device token that was received as frame item 1, or
-		 * <code>null</code> if no token was detected
-		 */
-		public byte[] getToken() { return token; }
-		
-		/**
-		 * @return the priority code, either 10 or 5, that was received as
-		 * frame item 5, or <code>-1</code> if no priority code was detected
-		 */
-		public byte getPriority() { return priority; }
-		
-		/**
-		 * @return the JSON payload that was received as frame item 2, or
-		 * null if no payload was detected
-		 */
-		public String getPayload() { return payload; }
 	}
 	
 	private final static byte CMD_SEND = 2, CMD_ERROR = 8, ID_PAYLOAD = 2,
@@ -288,8 +217,7 @@ public class MockApnsServer {
 						status = NO_PAYLOAD;
 						break;
 					}
-					if ((bad_token != null) && (bad_token.equalsApnsToken(
-							packet.token))) {
+					if (Arrays.equals(bad_token, packet.token)) {
 						status = BAD_TOKEN;
 						break;
 					}
@@ -312,7 +240,7 @@ public class MockApnsServer {
 					event_listener.didRejectPacket(packet, status);
 				}
 			}
-			ServiceConnector.closeQuietly(client);
+			closeQuietly(client);
 			synchronized (conns) {
 				conns[conn_idx] = null;
 				conns.notify();
@@ -343,7 +271,7 @@ public class MockApnsServer {
 
 	private PortListener port_listener = null;
 	private ApnsServerEventListener event_listener = null;
-	private DeviceToken bad_token = null;
+	private byte[] bad_token = null;
 	public static final int MAX_CONN = 16;
 	private final ServerThread[] conns = new ServerThread[MAX_CONN];
 	
@@ -391,7 +319,7 @@ public class MockApnsServer {
 	 * @param bad_token the device token to be recognized as invalid
 	 * @return this mock server object for fluent configuration
 	 */
-	public MockApnsServer defineBadToken(DeviceToken bad_token) {
+	public MockApnsServer defineBadToken(byte[] bad_token) {
 		this.bad_token = bad_token;
 		return this;
 	}
@@ -406,5 +334,14 @@ public class MockApnsServer {
 	public MockApnsServer setEventListener(ApnsServerEventListener listener) {
 		this.event_listener = listener;
 		return this;
+	}
+	
+	private static void closeQuietly(Closeable is) {
+		if (is != null) {
+			try {
+				is.close();
+			}
+			catch (IOException e) { }
+		}
 	}
 }

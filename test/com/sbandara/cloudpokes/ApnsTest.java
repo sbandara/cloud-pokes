@@ -7,8 +7,7 @@ import java.io.InputStream;
 
 import org.junit.Test;
 
-import com.sbandara.cloudpokes.MockApnsServer.ApnsPacket;
-import com.sbandara.cloudpokes.MockApnsServer.*;
+import com.sbandara.cloudpokes.mockapns.*;
 import com.sbandara.cloudpokes.ApnsGateway.*;
 
 public class ApnsTest {

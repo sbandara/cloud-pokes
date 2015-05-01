@@ -1,4 +1,4 @@
-package com.sbandara.cloudpokes;
+package com.sbandara.cloudpokes.mockapns;
 
 import static org.junit.Assert.*;
 
@@ -13,9 +13,6 @@ import javax.xml.bind.DatatypeConverter;
 
 import org.junit.*;
 
-import com.sbandara.cloudpokes.MockApnsServer.ApnsPacket;
-import com.sbandara.cloudpokes.MockApnsServer.*;
-
 public class MockServerTest {
 	
 	private final static int MOCK_APNS_PORT = 2195, TOKEN_LEN = 32,
@@ -25,19 +22,16 @@ public class MockServerTest {
 			("AgAYeyJhcHMiOnsiYWxlcnQiOiJ0ZXN0In19AwAEAAAAAAQABAAAAAAFAAEK");
 
 	private static MockApnsServer mock = null;
-	private static byte[][] tokens = null;
+	private static byte[] token = null;
 	private Socket socket = null;
 	private final ArrayList<ApnsPacket> packets = new ArrayList<ApnsPacket>();
 		
 	@BeforeClass
 	public static void setUp() throws IOException {
-		tokens = new byte[4][];
-		int n = 0;
-		byte[] token = new byte[TOKEN_LEN];
+		token = new byte[TOKEN_LEN];
 		for (int k = 0; k < TOKEN_LEN; k ++) {
-			token[k] = (byte) (n + k);
+			token[k] = (byte) k;
 		}
-		tokens[n] = token;
 		mock = new MockApnsServer();
 		mock.start(MOCK_APNS_PORT);
 	}
@@ -90,7 +84,7 @@ public class MockServerTest {
 	public void testWithValidPacket() throws IOException {
 		synchronized (packets) {
 			try {
-				socket.getOutputStream().write(binaryPacket(tokens[0]));
+				socket.getOutputStream().write(binaryPacket(token));
 				packets.wait();
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
@@ -101,8 +95,8 @@ public class MockServerTest {
 	
 	@Test(timeout=1000)
 	public void testWithInvalidToken() throws IOException {
-		mock.defineBadToken(DeviceToken.apnsToken(tokens[0]));
-		byte[] bad_packet = binaryPacket(tokens[0]);
+		mock.defineBadToken(token);
+		byte[] bad_packet = binaryPacket(token);
 		bad_packet[bad_packet.length - ID_LITTLE_REV_INDEX] = MSG_ID;
 		socket.getOutputStream().write(bad_packet);
 		assertArrayEquals(new byte[] {8, 8, 0, 0, 0, MSG_ID}, readResponse());
@@ -111,7 +105,7 @@ public class MockServerTest {
 
 	@Test(timeout=1000)
 	public void testShutdown() throws IOException {
-		byte[] packet = binaryPacket(tokens[0]);
+		byte[] packet = binaryPacket(token);
 		packet[packet.length - ID_LITTLE_REV_INDEX] = MSG_ID;
 		synchronized (packets) {
 			socket.getOutputStream().write(packet);
