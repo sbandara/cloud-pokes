@@ -7,7 +7,7 @@ import java.io.InputStream;
 
 import org.junit.Test;
 
-import com.sbandara.cloudpokes.MockApnsServer.*;
+import com.sbandara.cloudpokes.mockapns.*;
 import com.sbandara.cloudpokes.ApnsGateway.*;
 
 public class ApnsTest {
@@ -24,10 +24,12 @@ public class ApnsTest {
 	}
 	
 	private class MockServerListener implements ApnsServerEventListener {
-		
 		@Override
 		public synchronized void didAcceptPacket(ApnsPacket packet) {
 			System.out.println(packet.getPayload().toString());
+		}
+		@Override
+		public void didRejectPacket(ApnsPacket packet, byte error) {
 		}
 	}
 	
