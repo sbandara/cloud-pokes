@@ -1,3 +1,7 @@
 .classpath
 .project
+.gitignore
 bin/
+*.class
+target/
+*.jar
