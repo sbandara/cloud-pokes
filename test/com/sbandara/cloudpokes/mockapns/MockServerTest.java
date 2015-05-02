@@ -4,34 +4,23 @@ import static org.junit.Assert.*;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
-
-import javax.xml.bind.DatatypeConverter;
 
 import org.junit.*;
 
 public class MockServerTest {
 	
-	private final static int MOCK_APNS_PORT = 2195, TOKEN_LEN = 32,
-			ID_LITTLE_REV_INDEX = 12, MSG_ID = 42;
-	private final static byte[] HEAD = DatatypeConverter.parseBase64Binary(
-			"AgAAAFABACA="), TAIL = DatatypeConverter.parseBase64Binary
-			("AgAYeyJhcHMiOnsiYWxlcnQiOiJ0ZXN0In19AwAEAAAAAAQABAAAAAAFAAEK");
+	private final static int MOCK_APNS_PORT = 2195, MSG_ID = 42;
 
 	private static MockApnsServer mock = null;
-	private static byte[] token = null;
 	private Socket socket = null;
 	private final ArrayList<ApnsPacket> packets = new ArrayList<ApnsPacket>();
-		
+	
 	@BeforeClass
 	public static void setUp() throws IOException {
-		token = new byte[TOKEN_LEN];
-		for (int k = 0; k < TOKEN_LEN; k ++) {
-			token[k] = (byte) k;
-		}
 		mock = new MockApnsServer();
 		mock.start(MOCK_APNS_PORT);
 	}
@@ -54,16 +43,40 @@ public class MockServerTest {
 		socket = new Socket(InetAddress.getLocalHost(), MOCK_APNS_PORT);
 	}
 	
+	private ApnsToken[] createTokens(int n) {
+		ApnsToken[] tokens = new ApnsToken[n];
+		for (int k = 0; k < n; k ++) {
+			boolean is_duplicate = false;
+			do {
+				tokens[k] = ApnsToken.randomToken();
+				for (int j = 0; j < k; j ++) {
+					if (tokens[j].equals(tokens[k])) {
+						is_duplicate = true;
+					}
+				}
+			}
+			while (is_duplicate == true);
+		}
+		return tokens;
+	}
+	
 	@After
 	public void close() throws IOException {
 		socket.close();
 	}
 	
-	private static byte[] binaryPacket(byte[] token) {
-		Assert.assertEquals(token.length, TOKEN_LEN);
-		ByteBuffer buf = ByteBuffer.allocate(HEAD.length + token.length
-				+ TAIL.length);
-		return buf.put(HEAD).put(token).put(TAIL).array();
+	private static byte[] buildValid(byte[] token, int identifier) {
+		PacketBuilder builder = new PacketBuilder(256);
+		try {
+			builder.putArrayItem((byte) 1, token).putArrayItem((byte) 2,
+					"{\"aps\":{\"alert\":\"Hello world!\"}}".getBytes("UTF-8"))
+					.putIntItem((byte) 3, identifier).putIntItem((byte) 4, 0)
+					.putByteItem((byte) 5, (byte) 10);
+		}
+		catch (UnsupportedEncodingException e) {
+			throw new RuntimeException("UTF-8 encoding not supprted.", e);
+		}
+		return  builder.build();
 	}
 	
 	private byte[] readResponse() throws IOException {
@@ -82,22 +95,28 @@ public class MockServerTest {
 	
 	@Test(timeout=1000)
 	public void testWithValidPacket() throws IOException {
-		synchronized (packets) {
-			try {
-				socket.getOutputStream().write(binaryPacket(token));
-				packets.wait();
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
+		final int N_MSG = 3;
+		ApnsToken token[] = createTokens(N_MSG);
+		for (int k = 0; k < N_MSG; k ++) {
+			byte[] packet = buildValid(token[k].getBytes(), 0);
+			synchronized (packets) {
+				try {
+					socket.getOutputStream().write(packet);
+					packets.wait();
+				}
+				catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
 			}
 		}
-		assertEquals(packets.size(), 1);
+		assertEquals(packets.size(), N_MSG);
 	}
 	
 	@Test(timeout=1000)
 	public void testWithInvalidToken() throws IOException {
-		mock.defineBadToken(token);
-		byte[] bad_packet = binaryPacket(token);
-		bad_packet[bad_packet.length - ID_LITTLE_REV_INDEX] = MSG_ID;
+		ApnsToken token[] = createTokens(1);
+		mock.defineBadToken(token[0].getBytes());
+		byte[] bad_packet = buildValid(token[0].getBytes(), MSG_ID);
 		socket.getOutputStream().write(bad_packet);
 		assertArrayEquals(new byte[] {8, 8, 0, 0, 0, MSG_ID}, readResponse());
 		assertEquals(packets.size(), 0);
@@ -105,8 +124,8 @@ public class MockServerTest {
 
 	@Test(timeout=1000)
 	public void testShutdown() throws IOException {
-		byte[] packet = binaryPacket(token);
-		packet[packet.length - ID_LITTLE_REV_INDEX] = MSG_ID;
+		ApnsToken token[] = createTokens(1);
+		byte[] packet = buildValid(token[0].getBytes(), MSG_ID);
 		synchronized (packets) {
 			socket.getOutputStream().write(packet);
 			try {

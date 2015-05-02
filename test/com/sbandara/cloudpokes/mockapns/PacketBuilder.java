@@ -1,4 +1,4 @@
-package com.sbandara.cloudpokes.util;
+package com.sbandara.cloudpokes.mockapns;
 
 import java.nio.ByteBuffer;
 
