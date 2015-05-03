@@ -14,15 +14,6 @@ public class ApnsTest {
 	
 	private final static int MOCK_APNS_PORT = 2195;
 	
-	@Test
-	public void testByteArrayToIntConversion() {
-		for (int k = 0; k < 30; k ++) {
-			int value = 2 << k;
-			assertEquals(value, ApnsPushSender.bytesToInteger(
-					ApnsNotification.integerToBytes(value), 0));
-		}
-	}
-	
 	private class MockServerListener implements ApnsServerEventListener {
 		@Override
 		public synchronized void didAcceptPacket(ApnsPacket packet) {

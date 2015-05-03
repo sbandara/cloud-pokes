@@ -6,6 +6,8 @@ import java.net.Socket;
 
 public class FeedbackClient extends ApnsGateway {
 	
+	private static final int TOKEN_LEN = 32;
+	
 	public interface Listener {
 		public void receiveInactiveToken(byte[] token);
 	}
@@ -13,7 +15,7 @@ public class FeedbackClient extends ApnsGateway {
 	public FeedbackClient(ApnsConfig config) {
 		super(config, Service.FEEDBACK);
 	}
-
+	
 	@SuppressWarnings("resource")
 	public void fetchInactiveTokens(Listener listener) throws IOException {
 		InputStream in = null;
@@ -32,10 +34,10 @@ public class FeedbackClient extends ApnsGateway {
 				if (n < 0) {
 					break;
 				}
-				else if ((n != header.length) || (header[5] != 32)) {
+				else if ((n != header.length) || (header[5] != TOKEN_LEN)) {
 					throw new IOException("Bad response from APNS.");
 				}
-				byte[] token = new byte[32];
+				byte[] token = new byte[TOKEN_LEN];
 				n = in.read(token);
 				if (n != token.length) {
 					throw new IOException("Bad response from APNS.");

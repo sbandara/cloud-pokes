@@ -2,10 +2,10 @@ package com.sbandara.cloudpokes;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.eclipsesource.json.JsonObject;
+import com.sbandara.cloudpokes.util.PacketBuilder;
 
 final class ApnsNotification extends Notification {
 
@@ -26,16 +26,6 @@ final class ApnsNotification extends Notification {
 		setSound("default");
 		return this;
 	}
-		
-	static byte[] integerToBytes(int value) {
-		ByteBuffer buf = ByteBuffer.allocate(4);
-		return buf.putInt(value).array();
-	}
-
-	static byte[] shortToBytes(short value) {
-		ByteBuffer buf = ByteBuffer.allocate(2);
-		return buf.putShort(value).array();
-	}
 	
 	@Override
 	protected void sealPayload() {
@@ -51,18 +41,13 @@ final class ApnsNotification extends Notification {
 	@Override
 	void writeToOutputStream(OutputStream out) throws IOException {
 		byte[] payload = jsonToByteArray(json_payload);
-		int frm_len = 38 + payload.length + 18;
-		out.write(CMD_SEND);
-		out.write(integerToBytes(frm_len));
-		out.write(new byte[] {ID_TOKEN, 0, 32});
-		out.write(token.getApnsToken());
-		out.write(ID_PAYLOAD);
-		out.write(shortToBytes((short) payload.length));
-		out.write(payload);		
-		out.write(new byte[] {ID_IDENTIFIER, 0, 4});
-		out.write(integerToBytes(identifier));
-		out.write(new byte[] {ID_EXPIRATION, 0, 4, 0, 0, 0, 0});
-		out.write(new byte[] {ID_PRIORITY, 0, 1, 10});
+		final int packet_len = payload.length + 61;
+		PacketBuilder builder = new PacketBuilder(packet_len);
+		out.write(builder.putArrayItem(ID_TOKEN, getToken().getApnsToken())
+				.putArrayItem(ID_PAYLOAD, payload)
+				.putIntItem(ID_IDENTIFIER, identifier)
+				.putIntItem(ID_EXPIRATION, 0)
+				.putByteItem(ID_PRIORITY, (byte) 10).build());
 	}
 
 	@Override

@@ -11,6 +11,8 @@ import java.util.ArrayList;
 
 import org.junit.*;
 
+import com.sbandara.cloudpokes.util.PacketBuilder;
+
 public class MockServerTest {
 	
 	private final static int MOCK_APNS_PORT = 2195, MSG_ID = 42;
@@ -41,24 +43,6 @@ public class MockServerTest {
 			}
 		}).defineBadToken(null);
 		socket = new Socket(InetAddress.getLocalHost(), MOCK_APNS_PORT);
-	}
-	
-	private ApnsToken[] createTokens(int n) {
-		ApnsToken[] tokens = new ApnsToken[n];
-		for (int k = 0; k < n; k ++) {
-			boolean is_duplicate = false;
-			do {
-				tokens[k] = ApnsToken.randomToken();
-				for (int j = 0; j < k; j ++) {
-					if (tokens[j].equals(tokens[k])) {
-						is_duplicate = true;
-						break;
-					}
-				}
-			}
-			while (is_duplicate == true);
-		}
-		return tokens;
 	}
 	
 	@After
@@ -92,7 +76,7 @@ public class MockServerTest {
 	@Test(timeout=1000)
 	public void testWithValidPackets()
 			throws IOException, InterruptedException {
-		ApnsToken token[] = createTokens(3);
+		ApnsToken token[] = ApnsToken.uniqueRandom(3);
 		for (int k = 0; k < token.length; k ++) {
 			synchronized (packets) {
 				socket.getOutputStream().write(buildValid(token[k], 0));
@@ -104,30 +88,30 @@ public class MockServerTest {
 	
 	@Test(timeout=1000)
 	public void testBadToken() throws IOException {
-		ApnsToken token[] = createTokens(1);
-		mock.defineBadToken(token[0].getBytes());
-		socket.getOutputStream().write(buildValid(token[0], MSG_ID));
+		ApnsToken bad_token = ApnsToken.randomToken();
+		mock.defineBadToken(bad_token.getBytes());
+		socket.getOutputStream().write(buildValid(bad_token, MSG_ID));
 		assertArrayEquals(new byte[] {8, 8, 0, 0, 0, MSG_ID}, readResponse());
 		assertEquals(packets.size(), 0);
 	}
 
 	@Test(timeout=1000)
 	public void testLastAcceptedId() throws IOException {
-		ApnsToken token[] = createTokens(2);
 		OutputStream os = socket.getOutputStream(); 
-		os.write(buildValid(token[0], MSG_ID));
-		os.write(new PacketBuilder(256).putArrayItem((byte) 1, token[1]
-				.getBytes()).putIntItem((byte) 3, MSG_ID + 1).putIntItem(
-						(byte) 4, 0).putByteItem((byte) 5, (byte) 5).build());
+		os.write(buildValid(ApnsToken.randomToken(), MSG_ID));
+		os.write(new PacketBuilder(256).putArrayItem((byte) 1, ApnsToken
+				.randomToken().getBytes()).putIntItem((byte) 3, MSG_ID + 1)
+				.putIntItem((byte) 4, 0).putByteItem((byte) 5, (byte) 5)
+				.build());
 		assertArrayEquals(new byte[] {8, MockApnsServer.NO_PAYLOAD, 0, 0, 0,
 				MSG_ID}, readResponse());
 	}
 	
 	@Test(timeout=1000)
 	public void testShutdown() throws IOException {
-		ApnsToken token[] = createTokens(1);
 		synchronized (packets) {
-			socket.getOutputStream().write(buildValid(token[0], MSG_ID));
+			socket.getOutputStream().write(buildValid(ApnsToken.randomToken(),
+					MSG_ID));
 			try {
 				packets.wait();
 			}

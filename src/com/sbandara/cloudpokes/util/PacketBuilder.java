@@ -1,4 +1,4 @@
-package com.sbandara.cloudpokes.mockapns;
+package com.sbandara.cloudpokes.util;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
