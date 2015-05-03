@@ -8,8 +8,13 @@ import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+import org.slf4j.*;
+
 public class MockApnsServer {
 	
+	private final static String TAG = "MockApnsServer";
+	private final static Logger logger = LoggerFactory.getLogger(TAG);
+
 	private final class PortListener implements Runnable {
 		
 		private ServerSocket server_socket;
@@ -33,14 +38,14 @@ public class MockApnsServer {
 		
 		public void run() {
 			try {
-				System.out.println("Waiting for clients...");
+				logger.info("Mock APNS server started.");
 				for (;;) {
 				    Socket client = server_socket.accept();
 				    spawnServerThread(client);
 				}
 			}
 			catch (IOException e) {
-				System.out.println("Mock APNS server shut down.");
+				logger.info("Mock APNS server shut down.");
 			}
 		}
 		
@@ -95,11 +100,10 @@ public class MockApnsServer {
 			return this;
 		}
 		
-		private void sendErrorPacket(byte code) {
-			code = apnsCodeForError(code);
+		private void sendErrorPacket(byte apns_code) {
 			ByteBuffer response = ByteBuffer.allocate(6).put(CMD_ERROR)
-					.put(code);
-			if (code == BAD_TOKEN) {
+					.put(apns_code);
+			if (apns_code == BAD_TOKEN) {
 				if ((packet != null) && (packet.notification_id != -1)) {
 					response.putInt(packet.notification_id);
 				}
@@ -194,36 +198,35 @@ public class MockApnsServer {
 		
 		public void run() {
 			thread = Thread.currentThread();
-			System.out.println("Connected to client.");
+			logger.debug("Client connected.");
 			byte status = 0;
 			try {
 				is = new BufferedInputStream(client.getInputStream());
-				for (;;) {
+				while (status == 0) {
 					packet = new ApnsPacket();
 					int header = is.read();
 					if (header == -1) {
 						break;
 					}
-					else if (header != CMD_SEND) {
+					if (header != CMD_SEND) {
 						status = OUT_OF_FRAME;
 						break;
 					}
 					status = readPacket();
 					if (packet.token == null) {
 						status = NO_TOKEN;
-						break;
 					}
-					if (packet.payload == null) {
+					else if (packet.payload == null) {
 						status = NO_PAYLOAD;
-						break;
 					}
-					if (Arrays.equals(bad_token, packet.token)) {
+					else if (Arrays.equals(bad_token, packet.token)) {
 						status = BAD_TOKEN;
-						break;
 					}
-					accepted = packet;
-					if (event_listener != null) {
-						event_listener.didAcceptPacket(accepted);
+					else {
+						accepted = packet;
+						if (event_listener != null) {
+							event_listener.didAcceptPacket(accepted);
+						}
 					}
 				}
 			}
@@ -231,11 +234,11 @@ public class MockApnsServer {
 				status = OTHER_ERROR;
 			}
 			if (Thread.interrupted()) {
-				System.out.println("Connection interrupted.");
 				status = SHUTDOWN;
 			}
+			byte apns_code = apnsCodeForError(status);
 			if (status != 0) {
-				sendErrorPacket(status);
+				sendErrorPacket(apns_code);
 				if (event_listener != null) {
 					event_listener.didRejectPacket(packet, status);
 				}
@@ -245,7 +248,7 @@ public class MockApnsServer {
 				conns[conn_idx] = null;
 				conns.notify();
 			}
-			System.out.println("Connection closed.");
+			logger.debug("Connection closed with code {}.", apns_code);
 		}
 		
 		private void disconnect() {

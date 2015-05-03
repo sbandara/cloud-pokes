@@ -52,6 +52,7 @@ public class MockServerTest {
 				for (int j = 0; j < k; j ++) {
 					if (tokens[j].equals(tokens[k])) {
 						is_duplicate = true;
+						break;
 					}
 				}
 			}
@@ -89,56 +90,44 @@ public class MockServerTest {
 	}
 	
 	@Test(timeout=1000)
-	public void testLastAcceptedId() throws IOException {
-		ApnsToken token[] = createTokens(2);
-		byte[] packet = buildValid(token[0], MSG_ID);
-		PacketBuilder builder = new PacketBuilder(256);
-		byte[] bad_packet = builder.putArrayItem((byte) 1, token[1].getBytes())
-				.putIntItem((byte) 3, MSG_ID + 1).putIntItem((byte) 4, 0)
-				.putByteItem((byte) 5, (byte) 5).build();
-		OutputStream os = socket.getOutputStream(); 
-		os.write(packet);
-		os.write(bad_packet);
-		assertArrayEquals(new byte[] {8, MockApnsServer.NO_PAYLOAD, 0, 0, 0,
-				MSG_ID}, readResponse());
-		assertEquals(packets.size(), 1);
-	}
-	
-	@Test(timeout=1000)
-	public void testWithValidPackets() throws IOException {
-		final int N_TOKENS = 3;
-		ApnsToken token[] = createTokens(N_TOKENS);
-		for (int k = 0; k < N_TOKENS; k ++) {
-			byte[] packet = buildValid(token[k], 0);
+	public void testWithValidPackets()
+			throws IOException, InterruptedException {
+		ApnsToken token[] = createTokens(3);
+		for (int k = 0; k < token.length; k ++) {
 			synchronized (packets) {
-				try {
-					socket.getOutputStream().write(packet);
-					packets.wait();
-				}
-				catch (InterruptedException e) {
-					Thread.currentThread().interrupt();
-				}
+				socket.getOutputStream().write(buildValid(token[k], 0));
+				packets.wait();
 			}
 		}
-		assertEquals(packets.size(), N_TOKENS);
+		assertEquals(packets.size(), token.length);
 	}
 	
 	@Test(timeout=1000)
-	public void testWithInvalidToken() throws IOException {
+	public void testBadToken() throws IOException {
 		ApnsToken token[] = createTokens(1);
 		mock.defineBadToken(token[0].getBytes());
-		byte[] bad_packet = buildValid(token[0], MSG_ID);
-		socket.getOutputStream().write(bad_packet);
+		socket.getOutputStream().write(buildValid(token[0], MSG_ID));
 		assertArrayEquals(new byte[] {8, 8, 0, 0, 0, MSG_ID}, readResponse());
 		assertEquals(packets.size(), 0);
 	}
 
 	@Test(timeout=1000)
+	public void testLastAcceptedId() throws IOException {
+		ApnsToken token[] = createTokens(2);
+		OutputStream os = socket.getOutputStream(); 
+		os.write(buildValid(token[0], MSG_ID));
+		os.write(new PacketBuilder(256).putArrayItem((byte) 1, token[1]
+				.getBytes()).putIntItem((byte) 3, MSG_ID + 1).putIntItem(
+						(byte) 4, 0).putByteItem((byte) 5, (byte) 5).build());
+		assertArrayEquals(new byte[] {8, MockApnsServer.NO_PAYLOAD, 0, 0, 0,
+				MSG_ID}, readResponse());
+	}
+	
+	@Test(timeout=1000)
 	public void testShutdown() throws IOException {
 		ApnsToken token[] = createTokens(1);
-		byte[] packet = buildValid(token[0], MSG_ID);
 		synchronized (packets) {
-			socket.getOutputStream().write(packet);
+			socket.getOutputStream().write(buildValid(token[0], MSG_ID));
 			try {
 				packets.wait();
 			}
