@@ -46,7 +46,7 @@ public class AsyncQueueTest {
 			}
 			queue.enqueue(action, id);
 		}
-		sleepDeeply(500);
+		queue.purgeQueue();
 		for (int k = 0; k < COUNT; k ++) {
 			int id = dest.get(k);
 			Assert.assertEquals(id, k);
@@ -57,8 +57,8 @@ public class AsyncQueueTest {
 	
 	@Test(timeout=10000)
 	public void testRewind() {
-		final int[] FAIL_ID = new int[]{ 5, 21, 46 };
-		int n_rewind = 0;
+		final int[] FAIL_ID = new int[]{ 5, 21, 23, 46, 61 };
+		int n_error = 0, n_rewind = 0, n_missed = 0;
 		rewind = -1;
 		for (int id = 0; id < COUNT; id ++) {
 			queue.enqueue(new Action(id) {
@@ -72,16 +72,16 @@ public class AsyncQueueTest {
 			}, id);
 			if (rewind > -1) {
 				try {
+					n_error ++;
 					queue.rewind(rewind);
-					n_rewind ++;
 				}
 				catch (EntryNotFoundException e) {
-					n_rewind --;
+					n_missed ++;
 				}
 				rewind = -1;
 			}
 		}
-		sleepDeeply(500);
+		queue.purgeQueue();
 		int prev_id = -1, id;
 		for (int k = 0; k < dest.size(); k ++) {
 			id = dest.get(k);
@@ -94,10 +94,13 @@ public class AsyncQueueTest {
 					}
 				}
 				Assert.assertTrue(is_fail_id);
-				n_rewind --;
+				n_rewind ++;
 			}
 			prev_id = id;
 		}
-		Assert.assertEquals(0, n_rewind);
+		Assert.assertEquals(n_error, n_rewind + n_missed);
+		Assert.assertTrue(n_rewind > 0);
+		int last_entry = dest.get(dest.size() - 1);
+		Assert.assertEquals(COUNT - 1, last_entry);
 	}
 }

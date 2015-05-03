@@ -13,7 +13,7 @@ public abstract class Notification {
 	private String sound = null, message = null;
 	private boolean did_seal = false;
 	protected final JsonObject json_payload = new JsonObject();
-	protected final DeviceToken token;
+	private final DeviceToken token;
 	
 	protected Notification(DeviceToken token) {
 		this.token = token;
@@ -57,7 +57,7 @@ public abstract class Notification {
 
 	abstract void dispatch();
 	
-	final protected static byte[] jsonToByteArray(JsonValue json) {
+	final static byte[] jsonToByteArray(JsonValue json) {
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		OutputStreamWriter writer = new OutputStreamWriter(baos);
 		try {

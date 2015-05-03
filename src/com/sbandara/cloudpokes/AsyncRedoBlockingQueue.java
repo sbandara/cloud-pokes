@@ -32,7 +32,7 @@ public final class AsyncRedoBlockingQueue {
 	
 	private final int tape_length, min_retain_millis;
 	private final Entry[] tape;
-	private int tail = 0, head = 0;
+	private int tail = 0, head = 0, last_id = -1;
 	private final Consumer consumer = new Consumer();
 	private Thread worker = null;
 	
@@ -80,6 +80,7 @@ public final class AsyncRedoBlockingQueue {
 		if (was_interrupted) {
 			Thread.currentThread().interrupt();
 		}
+		last_id = id;
 	}
 	
 	private final class Consumer implements Runnable {
@@ -110,8 +111,11 @@ public final class AsyncRedoBlockingQueue {
 	synchronized public void rewind(int id) throws EntryNotFoundException {
 		boolean was_interrupted = false;
 		int idx = -1;
+		if (id == last_id) {
+			return;
+		}
 		for (int k = inc(head); k != head; k = inc(k)) {
-			if ((tape[k] != null) && (tape[k].id == id)) {
+			if ((tape[k] != null) && (tape[k].id == id) && (tape[k].run > 0)) {
 				idx = k;
 				break;
 			}
@@ -132,7 +136,7 @@ public final class AsyncRedoBlockingQueue {
 				}
 			}
 			tail = idx;
-			for (int k = inc(tail); k != head; k = inc(k)) {
+			for (int k = inc(tail); k != inc(head); k = inc(k)) {
 				if (tape[k].run == 0) {
 					break;
 				}
@@ -141,6 +145,23 @@ public final class AsyncRedoBlockingQueue {
 			worker = new Thread(consumer);
 		}
 		worker.start();
+		if (was_interrupted) {
+			Thread.currentThread().interrupt();
+		}
+	}
+	
+	public synchronized void purgeQueue() {
+		boolean was_interrupted = false;
+		synchronized (consumer) {
+			while (worker != null) {
+				try {
+					consumer.wait();
+				}
+				catch (InterruptedException e) {
+					was_interrupted = true;
+				}
+			}
+		}
 		if (was_interrupted) {
 			Thread.currentThread().interrupt();
 		}

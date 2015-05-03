@@ -1,3 +1,9 @@
 .classpath
 .project
+.gitignore
 bin/
+*.class
+target/
+*.jar
+doc/
+log4j2.out.xml

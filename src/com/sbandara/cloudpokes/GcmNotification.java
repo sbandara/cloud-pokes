@@ -29,8 +29,9 @@ final class GcmNotification extends Notification {
 
 	@Override
 	void writeToOutputStream(OutputStream out) throws IOException {
-		JsonObject pack = new JsonObject().add("data", json_payload).add(
-				"registration_ids", new JsonArray().add(token.getGcmToken()));
+		JsonObject pack = new JsonObject().add("data", json_payload)
+				.add("registration_ids", new JsonArray().add(getToken()
+						.getGcmToken()));
 		byte[] payload = jsonToByteArray(pack);
 		out.write(payload);
 	}
