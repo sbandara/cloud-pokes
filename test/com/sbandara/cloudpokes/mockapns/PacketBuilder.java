@@ -1,5 +1,6 @@
 package com.sbandara.cloudpokes.mockapns;
 
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 
 /**
@@ -40,6 +41,21 @@ public class PacketBuilder {
 		ensureIsBuilding();
 		buf.put(id).putShort((short) item.length).put(item);
 		return this;
+	}
+
+	/**
+	 * Appends a String item to the packet.
+	 * @param id an identifier for the type of item
+	 * @param item the String content of the item
+	 * @return this PacketBuilder instance for fluent use
+	 */
+	public PacketBuilder putStringItem(byte id, String item) {
+		try {
+			return putArrayItem(id, item.getBytes("UTF-8"));
+		}
+		catch (UnsupportedEncodingException e) {
+			throw new RuntimeException("UTF-8 encoding not supported.");
+		}
 	}
 
 	/**

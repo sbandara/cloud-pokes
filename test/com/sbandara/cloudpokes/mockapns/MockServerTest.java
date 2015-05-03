@@ -4,7 +4,7 @@ import static org.junit.Assert.*;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
+import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -65,18 +65,13 @@ public class MockServerTest {
 		socket.close();
 	}
 	
-	private static byte[] buildValid(byte[] token, int identifier) {
+	private static byte[] buildValid(ApnsToken token, int identifier) {
 		PacketBuilder builder = new PacketBuilder(256);
-		try {
-			builder.putArrayItem((byte) 1, token).putArrayItem((byte) 2,
-					"{\"aps\":{\"alert\":\"Hello world!\"}}".getBytes("UTF-8"))
-					.putIntItem((byte) 3, identifier).putIntItem((byte) 4, 0)
-					.putByteItem((byte) 5, (byte) 10);
-		}
-		catch (UnsupportedEncodingException e) {
-			throw new RuntimeException("UTF-8 encoding not supprted.", e);
-		}
-		return  builder.build();
+		builder.putArrayItem((byte) 1, token.getBytes()).putStringItem((byte) 2,
+				"{\"aps\":{\"alert\":\"Hello world!\"}}")
+				.putIntItem((byte) 3, identifier).putIntItem((byte) 4, 0)
+				.putByteItem((byte) 5, (byte) 10);
+		return builder.build();
 	}
 	
 	private byte[] readResponse() throws IOException {
@@ -94,11 +89,27 @@ public class MockServerTest {
 	}
 	
 	@Test(timeout=1000)
-	public void testWithValidPacket() throws IOException {
-		final int N_MSG = 3;
-		ApnsToken token[] = createTokens(N_MSG);
-		for (int k = 0; k < N_MSG; k ++) {
-			byte[] packet = buildValid(token[k].getBytes(), 0);
+	public void testLastAcceptedId() throws IOException {
+		ApnsToken token[] = createTokens(2);
+		byte[] packet = buildValid(token[0], MSG_ID);
+		PacketBuilder builder = new PacketBuilder(256);
+		byte[] bad_packet = builder.putArrayItem((byte) 1, token[1].getBytes())
+				.putIntItem((byte) 3, MSG_ID + 1).putIntItem((byte) 4, 0)
+				.putByteItem((byte) 5, (byte) 5).build();
+		OutputStream os = socket.getOutputStream(); 
+		os.write(packet);
+		os.write(bad_packet);
+		assertArrayEquals(new byte[] {8, MockApnsServer.NO_PAYLOAD, 0, 0, 0,
+				MSG_ID}, readResponse());
+		assertEquals(packets.size(), 1);
+	}
+	
+	@Test(timeout=1000)
+	public void testWithValidPackets() throws IOException {
+		final int N_TOKENS = 3;
+		ApnsToken token[] = createTokens(N_TOKENS);
+		for (int k = 0; k < N_TOKENS; k ++) {
+			byte[] packet = buildValid(token[k], 0);
 			synchronized (packets) {
 				try {
 					socket.getOutputStream().write(packet);
@@ -109,14 +120,14 @@ public class MockServerTest {
 				}
 			}
 		}
-		assertEquals(packets.size(), N_MSG);
+		assertEquals(packets.size(), N_TOKENS);
 	}
 	
 	@Test(timeout=1000)
 	public void testWithInvalidToken() throws IOException {
 		ApnsToken token[] = createTokens(1);
 		mock.defineBadToken(token[0].getBytes());
-		byte[] bad_packet = buildValid(token[0].getBytes(), MSG_ID);
+		byte[] bad_packet = buildValid(token[0], MSG_ID);
 		socket.getOutputStream().write(bad_packet);
 		assertArrayEquals(new byte[] {8, 8, 0, 0, 0, MSG_ID}, readResponse());
 		assertEquals(packets.size(), 0);
@@ -125,7 +136,7 @@ public class MockServerTest {
 	@Test(timeout=1000)
 	public void testShutdown() throws IOException {
 		ApnsToken token[] = createTokens(1);
-		byte[] packet = buildValid(token[0].getBytes(), MSG_ID);
+		byte[] packet = buildValid(token[0], MSG_ID);
 		synchronized (packets) {
 			socket.getOutputStream().write(packet);
 			try {
