@@ -30,7 +30,7 @@ public class ApnsTest {
 			mock.setEventListener(mock_logger).start(MOCK_APNS_PORT);
 		}
 		catch (IOException e) {
-			fail();
+			fail(e.getMessage());
 		}
 		Clerk clerk = new Clerk();
 		clerk.configureApns(new ApnsConfig() {
