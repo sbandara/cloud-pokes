@@ -1,6 +1,12 @@
 package com.sbandara.cloudpokes;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public final class AsyncRedoBlockingQueue {
+	
+	private final static String TAG = "AsyncRedoBlockingQueue";
+	private final static Logger logger = LoggerFactory.getLogger(TAG);
 	
 	public AsyncRedoBlockingQueue(int size, int history_millis) {
 		tape_length = size;
@@ -24,7 +30,7 @@ public final class AsyncRedoBlockingQueue {
 				action.run();
 			}
 			catch (RuntimeException e) {
-				System.out.println("Unhandled Exception.");
+				logger.error("Unhandled exception in runnable.", e);
 			}
 			run = System.currentTimeMillis();
 		}

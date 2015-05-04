@@ -7,29 +7,21 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.eclipsesource.json.JsonObject;
 
-public final class GcmPushSender extends ServiceConnector {
+final class GcmPushSender extends ServiceConnector {
 	
 	private static final String url = "https://android.googleapis.com/gcm/send";
+	private static final String TAG = "GcmPushSender";
+	private static final Logger logger = LoggerFactory.getLogger(TAG);
 	
 	private final URL endpoint;
-	private final Delegate delegate;
+	private final GcmDelegate delegate;
 
-	private static GcmPushSender the_instance = null;
-	
-	public static void configure(Delegate delegate) {
-		the_instance = new GcmPushSender(delegate);
-	}
-	
-	public static GcmPushSender getInstance() {
-		if (the_instance == null) {
-			throw new IllegalStateException("GcmPushSender not configured.");
-		}
-		return the_instance;
-	}
-
-	public GcmPushSender(Delegate delegate) {
+	GcmPushSender(GcmDelegate delegate) {
 		this.delegate = delegate;
 		try {
 			endpoint = new URL(url);
@@ -37,12 +29,6 @@ public final class GcmPushSender extends ServiceConnector {
 		catch (IOException e) {
 			throw new RuntimeException("GCM endpoint URL is misconfigured.");
 		}
-	}
-	
-	public interface Delegate {
-		public String getApiKey();
-		public void didSend(Notification notification, String reg_id);
-		public void didFail(Notification notification, String error);
 	}
 	
 	private HttpURLConnection getConnection() {
@@ -69,7 +55,7 @@ public final class GcmPushSender extends ServiceConnector {
 			notification.writeToOutputStream(os);
 		}
 		catch (IOException e) {
-			System.out.println("Failed to send GCM request.");
+			logger.error("Failed to send GCM request.");
 			conn.disconnect();
 			return;
 		}
@@ -85,12 +71,12 @@ public final class GcmPushSender extends ServiceConnector {
 		    response = JsonObject.readFrom(reader);
 		}
 		catch (IOException e) {
-			System.out.println("Failed to read response from GCM server.");
+			logger.error("Failed to read response from GCM server.");
 			delegate.didFail(notification, null);
 			return;
 		}
 		catch (RuntimeException e) {
-			System.out.println("Failed to parse response from GCM server.");
+			logger.error("Failed to parse response from GCM server.");
 			delegate.didFail(notification, null);
 			return;
 		}

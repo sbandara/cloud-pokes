@@ -6,27 +6,21 @@ import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.util.concurrent.locks.ReentrantLock;
 
-public final class ApnsPushSender extends ApnsGateway {
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.sbandara.cloudpokes.ApnsConfig.Service;
+
+final class ApnsPushSender extends ApnsGateway {
 	
 	private final ReentrantLock socket_lock = new ReentrantLock();
 	private Socket socket = null;
 	private ErrorReceiver observer = new ErrorReceiver();
 	
-	public static boolean is_debug = false;
-	private static ApnsPushSender the_instance = null;
-	
-	public static void configure(ApnsConfig config) {
-		the_instance = new ApnsPushSender(config);
-	}
-	
-	public static ApnsPushSender getInstance() {
-		if (the_instance == null) {
-			throw new IllegalStateException("ApnsPushSender not configured.");
-		}
-		return the_instance;
-	}
-			
-	private ApnsPushSender(ApnsConfig config) {
+	private final static String TAG = "ApnsPushSender";
+	private static final Logger logger = LoggerFactory.getLogger(TAG);	
+				
+	ApnsPushSender(ApnsConfig config) {
 		super(config, Service.DISPATCH);
 	}
 
@@ -37,6 +31,8 @@ public final class ApnsPushSender extends ApnsGateway {
 	static private class ErrorReceiver extends Thread {
 		
 		final static int OK = 0, HANGUP = 1024;
+		private final static String TAG = "ApnsPushSender.ErrorReceiver";
+		private static final Logger logger = LoggerFactory.getLogger(TAG);
 		
 		private InputStream input_stream = null;
 		private int error_code = OK, last_sent_id = 0;
@@ -56,36 +52,37 @@ public final class ApnsPushSender extends ApnsGateway {
 			if (input_stream == null) {
 				throw new IllegalStateException("No input stream assigned.");
 			}
+			byte[] pack = new byte[ERROR_BUF_SIZE];
+			int n_byte, off = 0;
 			try {
-				byte[] pack = new byte[ERROR_BUF_SIZE];
-				int n_byte, off = 0;
 				while (off < pack.length) {
 					n_byte = input_stream.read(pack, off, pack.length - off);
 					if (n_byte == -1) {
-						throw new IOException("Connection dropped.");
+						throw new IOException("Incomplete error response.");
 					}
 					off += n_byte;
 				}
-				if (pack[0] != ERROR_HEADER) {
-					System.out.println("Unexpected response from APNS.");
-					return;
-				}
-				error_code = pack[1];
-				last_sent_id = bytesToInteger(pack, 2);
 			}
 			catch (IOException e) {
-				System.out.println(e.getMessage());
-				if (error_code == 0) {
-					error_code = HANGUP;
-				}
+				logger.error(e.getMessage());
+				error_code = HANGUP;
+			}
+			if (pack[0] != ERROR_HEADER) {
+				logger.error("Unexpected response from APNS.");
 				return;
+			}
+			if (off > 1) {
+				error_code = pack[1];
+				if (off == pack.length) {
+					last_sent_id = bytesToInteger(pack, 2);
+				}
 			}
 		}
 	}
-		
-	public int getLastSentId() { return observer.getLastSentId(); }
 	
-	public int getErrorCode() { return observer.getErrorCode(); }
+	int getLastSentId() { return observer.getLastSentId(); }
+	
+	int getErrorCode() { return observer.getErrorCode(); }
 	
 	private void closeSocket() {
 		closeQuietly(socket);
@@ -93,13 +90,6 @@ public final class ApnsPushSender extends ApnsGateway {
 	}
 	
 	void sendNotification(Notification notification) {
-		if (is_debug) {
-			try {
-				notification.writeToOutputStream(System.out);
-				return;
-			}
-			catch (IOException e) { }
-		}
 		socket_lock.lock();
 		try {
 			int last_error = observer.getErrorCode();
@@ -118,7 +108,9 @@ public final class ApnsPushSender extends ApnsGateway {
 			}
 			catch (IOException e) {
 				closeSocket();
-				System.out.println("Failed to dispatch notification.");
+				// TODO: store id of notification in case error stream does
+				// not indicate last accepted notification.
+				logger.warn("Failed attempt to dispatch notification.");
 			}
 		}
 		finally {

@@ -13,12 +13,14 @@ final class ApnsNotification extends Notification {
 			ID_IDENTIFIER = 3, ID_EXPIRATION = 4, ID_PRIORITY = 5;
 
 	private final int identifier;
+	private final ApnsPushSender sender;
 
 	private final static AtomicInteger id_gen = new AtomicInteger(1);
 
-	ApnsNotification(DeviceToken token) {
+	ApnsNotification(DeviceToken token, ApnsPushSender sender) {
 		super(token);
-		identifier = id_gen.incrementAndGet();
+		this.sender = sender;
+		identifier = id_gen.getAndIncrement();
 	}
 	
 	@Override
@@ -28,7 +30,7 @@ final class ApnsNotification extends Notification {
 	}
 	
 	@Override
-	protected void sealPayload() {
+	void sealPayload() {
 		JsonObject aps = new JsonObject();
 		aps.add("alert", getMessage());
 		String sound = getSound();
@@ -52,6 +54,6 @@ final class ApnsNotification extends Notification {
 
 	@Override
 	void dispatch() {
-		ApnsPushSender.getInstance().sendNotification(this);
+		sender.sendNotification(this);
 	}
 }

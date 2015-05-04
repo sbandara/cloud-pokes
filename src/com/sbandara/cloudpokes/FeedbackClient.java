@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.Socket;
 
+import com.sbandara.cloudpokes.ApnsConfig.Service;
+
 public class FeedbackClient extends ApnsGateway {
 	
 	private static final int TOKEN_LEN = 32;
@@ -23,8 +25,7 @@ public class FeedbackClient extends ApnsGateway {
 		try {
 			feedback_socket = socketConnect();
 			if (feedback_socket == null) {
-				System.out.println("Failed to contact feedback service.");
-				return;
+				throw new IOException("Failed to contact feedback service.");
 			}
 			in = feedback_socket.getInputStream();
 			byte[] header = new byte[6];

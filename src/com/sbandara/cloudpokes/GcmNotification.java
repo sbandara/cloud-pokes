@@ -8,8 +8,11 @@ import com.eclipsesource.json.JsonObject;
 
 final class GcmNotification extends Notification {
 	
-	GcmNotification(DeviceToken token) {
+	private final GcmPushSender sender;
+	
+	GcmNotification(DeviceToken token, GcmPushSender sender) {
 		super(token);
+		this.sender = sender;
 	}
 
 	@Override
@@ -19,7 +22,7 @@ final class GcmNotification extends Notification {
 	}
 
 	@Override
-	protected void sealPayload() {
+	void sealPayload() {
 		json_payload.add("message", getMessage());
 		String sound = getSound();
 		if (sound != null) {
@@ -38,6 +41,6 @@ final class GcmNotification extends Notification {
 
 	@Override
 	void dispatch() {
-		GcmPushSender.getInstance().sendNotification(this);
+		sender.sendNotification(this);
 	}
 }

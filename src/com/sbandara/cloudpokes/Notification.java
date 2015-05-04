@@ -12,10 +12,10 @@ public abstract class Notification {
 
 	private String sound = null, message = null;
 	private boolean did_seal = false;
-	protected final JsonObject json_payload = new JsonObject();
+	final JsonObject json_payload = new JsonObject();
 	private final DeviceToken token;
 	
-	protected Notification(DeviceToken token) {
+	Notification(DeviceToken token) {
 		this.token = token;
 	}
 	
@@ -71,16 +71,4 @@ public abstract class Notification {
 	}
 
 	abstract void writeToOutputStream(OutputStream out) throws IOException;
-	
-	public final static Notification withToken(DeviceToken token) {
-		if (token.isApnsToken()) {
-			return new ApnsNotification(token);
-		}
-		else if (token.isGcmToken()) {
-			return new GcmNotification(token);
-		}
-		else {
-			throw new UnsupportedOperationException("No sender for token type");
-		}
-	}
 }

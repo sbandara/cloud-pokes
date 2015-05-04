@@ -1,14 +1,11 @@
 package com.sbandara.cloudpokes;
 
 import static org.junit.Assert.*;
-
-import java.io.IOException;
-import java.io.InputStream;
-
 import org.junit.Test;
 
+import java.io.IOException;
+
 import com.sbandara.cloudpokes.mockapns.*;
-import com.sbandara.cloudpokes.ApnsGateway.*;
 
 public class ApnsTest {
 	
@@ -35,17 +32,16 @@ public class ApnsTest {
 		catch (IOException e) {
 			fail();
 		}
-		ApnsPushSender.configure(new ApnsConfig() {
+		Clerk clerk = new Clerk();
+		clerk.configureApns(new ApnsConfig() {
 			@Override
-			public String getCertPhrase() { return null; }
-			@Override
-			public InputStream getCertFile() throws IOException { return null; }
+			public CertificateSource getCertSource() { return null; }
 			@Override
 			public String getHostname(Service service) { return "localhost"; }
 			@Override
 			public int getPort(Service service) { return MOCK_APNS_PORT; }
 		});
-		Notification.withToken(new DeviceToken(new byte[32])).setMessage(
+		clerk.draftTo(new DeviceToken(new byte[32])).setMessage(
 				"Hello World!").send();
 		try {
 			Thread.sleep(1000);
