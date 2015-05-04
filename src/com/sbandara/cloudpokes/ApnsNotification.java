@@ -29,6 +29,8 @@ final class ApnsNotification extends Notification {
 		return this;
 	}
 	
+	public final int getId() { return identifier; }
+	
 	@Override
 	void sealPayload() {
 		JsonObject aps = new JsonObject();
@@ -54,6 +56,6 @@ final class ApnsNotification extends Notification {
 
 	@Override
 	void dispatch() {
-		sender.sendNotification(this);
+		sender.enqueueNotification(this);
 	}
 }

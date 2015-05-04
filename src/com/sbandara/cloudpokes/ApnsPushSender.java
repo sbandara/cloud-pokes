@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.util.concurrent.locks.ReentrantLock;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,15 +12,16 @@ import com.sbandara.cloudpokes.ApnsConfig.Service;
 
 final class ApnsPushSender extends ApnsGateway {
 	
-	private final ReentrantLock socket_lock = new ReentrantLock();
+	private final AsyncRedoBlockingQueue queue;
 	private Socket socket = null;
-	private ErrorReceiver observer = new ErrorReceiver();
+	private ErrorReceiver observer = null;
 	
 	private final static String TAG = "ApnsPushSender";
 	private static final Logger logger = LoggerFactory.getLogger(TAG);	
 				
 	ApnsPushSender(ApnsConfig config) {
 		super(config, Service.DISPATCH);
+		queue = new AsyncRedoBlockingQueue(128, 2000);
 	}
 
 	static int bytesToInteger(byte[] buf, int off) {
@@ -34,14 +34,14 @@ final class ApnsPushSender extends ApnsGateway {
 		private final static String TAG = "ApnsPushSender.ErrorReceiver";
 		private static final Logger logger = LoggerFactory.getLogger(TAG);
 		
-		private InputStream input_stream = null;
+		private final InputStream input_stream;
 		private int error_code = OK, last_sent_id = 0;
 		
 		int getLastSentId() { return last_sent_id; }
 		
 		int getErrorCode() { return error_code; }
 		
-		void setInputStream(InputStream input_stream) {
+		ErrorReceiver(InputStream input_stream) {
 			this.input_stream = input_stream;
 		}
 		
@@ -49,9 +49,6 @@ final class ApnsPushSender extends ApnsGateway {
 				
 		@Override
 		public void run() {
-			if (input_stream == null) {
-				throw new IllegalStateException("No input stream assigned.");
-			}
 			byte[] pack = new byte[ERROR_BUF_SIZE];
 			int n_byte, off = 0;
 			try {
@@ -89,32 +86,36 @@ final class ApnsPushSender extends ApnsGateway {
 		socket = null;		
 	}
 	
-	void sendNotification(Notification notification) {
-		socket_lock.lock();
-		try {
+	void enqueueNotification(final ApnsNotification notification) {
+		queue.enqueue(new Runnable() {
+			@Override
+			public void run() {
+				sendNotification(notification);
+			}
+		}, notification.getId());
+	}
+
+	private void sendNotification(ApnsNotification notification) {
+		if (observer != null) {
 			int last_error = observer.getErrorCode();
 			if (last_error != 0) {
 				closeSocket();
 			}
-			try {
-				if (socket == null) {
-					socket = socketConnect();
-					socket.setSoTimeout(0);
-					observer = new ErrorReceiver();
-					observer.setInputStream(socket.getInputStream());
-					observer.start();
-				}
-				notification.writeToOutputStream(socket.getOutputStream());
-			}
-			catch (IOException e) {
-				closeSocket();
-				// TODO: store id of notification in case error stream does
-				// not indicate last accepted notification.
-				logger.warn("Failed attempt to dispatch notification.");
-			}
 		}
-		finally {
-			socket_lock.unlock();
+		try {
+			if (socket == null) {
+				socket = socketConnect();
+				socket.setSoTimeout(0);
+				observer = new ErrorReceiver(socket.getInputStream());
+				observer.start();
+			}
+			notification.writeToOutputStream(socket.getOutputStream());
 		}
-	}
+		catch (IOException e) {
+			closeSocket();
+			// TODO: store id of notification in case error stream does
+			// not indicate last accepted notification.
+			logger.warn("Failed attempt to dispatch notification.");
+		}
+	}	
 }
