@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.eclipsesource.json.JsonObject;
+import com.sbandara.cloudpokes.util.ServiceConnector;
 
 final class GcmPushSender extends ServiceConnector {
 	

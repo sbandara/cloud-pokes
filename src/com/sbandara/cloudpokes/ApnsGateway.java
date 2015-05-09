@@ -8,6 +8,7 @@ import java.security.*;
 import javax.net.ssl.*;
 
 import com.sbandara.cloudpokes.ApnsConfig.Service;
+import com.sbandara.cloudpokes.util.ServiceConnector;
 
 abstract class ApnsGateway extends ServiceConnector {
 

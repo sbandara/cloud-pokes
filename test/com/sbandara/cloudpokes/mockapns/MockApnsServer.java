@@ -1,7 +1,6 @@
 package com.sbandara.cloudpokes.mockapns;
 
 import java.io.BufferedInputStream;
-import java.io.Closeable;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -9,6 +8,8 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import org.slf4j.*;
+
+import com.sbandara.cloudpokes.util.ServiceConnector;
 
 public class MockApnsServer {
 	
@@ -29,7 +30,7 @@ public class MockApnsServer {
 			int k = 0;
 		    while ((k < MAX_CONN) && (conns[k ++] != null));
 		    if (k == MAX_CONN) {
-		    	closeQuietly(client);
+		    	ServiceConnector.closeQuietly(client);
 		    }
 		    else {
 		    	conns[k] = new ServerThread(client, k).start();
@@ -50,7 +51,7 @@ public class MockApnsServer {
 		}
 		
 		void stop() {
-			closeQuietly(server_socket);
+			ServiceConnector.closeQuietly(server_socket);
 			server_socket = null;
 		}
 	}
@@ -121,13 +122,9 @@ public class MockApnsServer {
 		
 		private byte[] readBytes(int len) throws IOException {
 			byte[] pack = new byte[len];
-			int n_byte, off = 0;
-			while (off < pack.length) {
-				n_byte = is.read(pack, off, pack.length - off);
-				if (n_byte == -1) {
-					throw new IOException("Connection dropped.");
-				}
-				off += n_byte;
+			int n_byte = ServiceConnector.readStream(is, pack);
+			if (n_byte < len) {
+				throw new IOException("Connection dropped.");
 			}
 			return pack;
 		}
@@ -243,7 +240,7 @@ public class MockApnsServer {
 					event_listener.didRejectPacket(packet, status);
 				}
 			}
-			closeQuietly(client);
+			ServiceConnector.closeQuietly(client);
 			synchronized (conns) {
 				conns[conn_idx] = null;
 				conns.notify();
@@ -337,14 +334,5 @@ public class MockApnsServer {
 	public MockApnsServer setEventListener(ApnsServerEventListener listener) {
 		this.event_listener = listener;
 		return this;
-	}
-	
-	private static void closeQuietly(Closeable is) {
-		if (is != null) {
-			try {
-				is.close();
-			}
-			catch (IOException e) { }
-		}
 	}
 }
