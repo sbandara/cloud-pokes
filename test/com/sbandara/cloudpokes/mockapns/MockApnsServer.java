@@ -18,10 +18,32 @@ public class MockApnsServer {
 
 	private final class PortListener implements Runnable {
 		
-		private ServerSocket server_socket;
+		private final static long RETRY_DELAY_MILLIS = 100;
+		
+		private ServerSocket server_socket = null;
 		
 		PortListener(int port) throws IOException {
-		    server_socket = new ServerSocket(port);
+			IOException port_ex = null;
+			while (server_socket == null) {
+				try {
+					server_socket = new ServerSocket(port);
+				}
+				catch (IOException io_ex) {
+					if (port_ex == null) {
+						logger.warn("Failed to create socket. Retrying...");
+					}
+					else {
+						throw io_ex;
+					}
+					port_ex = io_ex;
+					try {
+						Thread.sleep(RETRY_DELAY_MILLIS);
+					}
+					catch (InterruptedException irpt_ex) {
+						Thread.currentThread().interrupt();
+					}
+				}
+			}
 			Thread listener_thread = new Thread(this);
 			listener_thread.start();
 		}
