@@ -51,8 +51,8 @@ public final class AsyncRedoBlockingQueue {
 
 	synchronized public void enqueue(Runnable action, int id) {
 		boolean was_interrupted = false;
+		head = inc(head);
 		synchronized (tape) {
-			head = inc(head);
 			while (head == tail) {
 				try {
 					tape.wait();
@@ -76,8 +76,8 @@ public final class AsyncRedoBlockingQueue {
 				}
 			}
 		}
+		tape[head] = new Entry(action, id);
 		synchronized (consumer) {
-			tape[head] = new Entry(action, id);
 			if (worker == null) {
 				worker = new Thread(consumer);
 				worker.start();
@@ -114,11 +114,10 @@ public final class AsyncRedoBlockingQueue {
 		}
 	}
 	
-	synchronized public void rewind(int id) throws EntryNotFoundException {
-		boolean was_interrupted = false;
+	synchronized public Entry rewind(int id) throws EntryNotFoundException {
 		int idx = -1;
 		if (id == last_id) {
-			return;
+			return null;
 		}
 		for (int k = inc(head); k != head; k = inc(k)) {
 			if ((tape[k] != null) && (tape[k].id == id) && (tape[k].run > 0)) {
@@ -129,34 +128,20 @@ public final class AsyncRedoBlockingQueue {
 		if (idx == -1) {
 			throw new EntryNotFoundException(id);
 		}
-		synchronized (consumer) {
-			if (worker != null) {
-				worker.interrupt();
-				while (worker != null) {
-					try {
-						consumer.wait();
-					}
-					catch (InterruptedException e) {
-						was_interrupted = true;
-					}
-				}
+		waitForWorker();
+		tail = idx;
+		for (int k = inc(tail); k != inc(head); k = inc(k)) {
+			if (tape[k].run == 0) {
+				break;
 			}
-			tail = idx;
-			for (int k = inc(tail); k != inc(head); k = inc(k)) {
-				if (tape[k].run == 0) {
-					break;
-				}
-				tape[k].run = 0;
-			}
-			worker = new Thread(consumer);
+			tape[k].run = 0;
 		}
+		worker = new Thread(consumer);
 		worker.start();
-		if (was_interrupted) {
-			Thread.currentThread().interrupt();
-		}
+		return null;
 	}
 	
-	public synchronized void purgeQueue() {
+	private void waitForWorker() {
 		boolean was_interrupted = false;
 		synchronized (consumer) {
 			while (worker != null) {
@@ -172,4 +157,6 @@ public final class AsyncRedoBlockingQueue {
 			Thread.currentThread().interrupt();
 		}
 	}
+	
+	public synchronized void purgeQueue() { waitForWorker(); }
 }
